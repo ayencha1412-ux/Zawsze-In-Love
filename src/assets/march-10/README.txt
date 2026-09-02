@@ -1,0 +1,1 @@
+March 10 photo assets are stored as normal WebP files. Do not replace them with placeholder text or malformed sprite data.
