@@ -2,6 +2,7 @@ import { useState } from 'react';
 import photo1 from '../assets/photo-1.webp';
 import photo2 from '../assets/photo-2.webp';
 import photo3 from '../assets/photo-3.webp';
+import RomanticBackdrop from './RomanticBackdrop.jsx';
 import { apiRequest, setStoredToken } from '../lib/api.js';
 
 const FEATURED = [
@@ -35,36 +36,59 @@ export default function AuthScreen({ onAuthenticated }) {
   };
 
   return (
-    <main className="auth-screen">
-      <section className="auth-story">
-        <span className="brand-mark large">♡</span>
-        <div className="eyebrow">Zawsze In Love</div>
+    <main className="auth-screen landing-shell">
+      <RomanticBackdrop variant="landing" />
+
+      <section className="auth-story landing-story">
+        <div className="landing-brandline">
+          <span className="brand-mark large">♡</span>
+          <div>
+            <div className="eyebrow">Zawsze In Love</div>
+            <span className="landing-private-pill">Private shared archive</span>
+          </div>
+        </div>
+
         <h1>Ayen & Jonalyn<br /><em>worth keeping.</em></h1>
         <p className="auth-lede">
           A private memory space for Ayen Chavez and Jonalyn Balmores — photos, videos, love notes,
           milestones, sealed letters, and the story you are still writing.
         </p>
-        <div className="auth-polaroids" aria-hidden="true">
+
+        <div className="landing-promise-row" aria-label="Archive highlights">
+          <span><b>♡</b> Made for two</span>
+          <span><b>✦</b> Private memories</span>
+          <span><b>∞</b> Built to keep growing</span>
+        </div>
+
+        <div className="auth-polaroids landing-polaroids" aria-hidden="true">
           {FEATURED.map((photo, index) => (
             <figure className={`mini-pol p${index + 1}`} key={photo.caption}>
               <img src={photo.src} alt="" decoding="async" />
+              <figcaption>{photo.caption}</figcaption>
             </figure>
           ))}
         </div>
       </section>
 
-      <section className="auth-card login-only-card">
+      <section className="auth-card login-only-card landing-login-card">
+        <div className="login-card-accent" aria-hidden="true" />
         <form className="auth-form" onSubmit={submit}>
-          <div>
+          <div className="login-card-heading">
+            <div className="login-card-status"><span /> Private access</div>
             <div className="eyebrow">Two people only</div>
             <h2>Come back to us.</h2>
             <p className="auth-helper">Sign in with either Ayen's or Jonalyn's private account.</p>
           </div>
-          <label><span>Email</span><input name="email" type="email" required autoComplete="email" /></label>
-          <label><span>Password</span><input name="password" type="password" required autoComplete="current-password" /></label>
-          <button className="btn primary wide" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+
+          <label><span>Email</span><input name="email" type="email" required autoComplete="email" placeholder="you@example.com" /></label>
+          <label><span>Password</span><input name="password" type="password" required autoComplete="current-password" placeholder="Your private password" /></label>
+          <button className="btn primary wide landing-signin" disabled={busy}>{busy ? 'Signing in…' : 'Sign in to our archive'}</button>
           {error && <p className="form-error">{error}</p>}
-          <div className="privacy-note">No public registration. No social feed. Just your shared archive.</div>
+
+          <div className="privacy-note landing-privacy-note">
+            <span className="privacy-icon">♡</span>
+            <div><strong>Just your shared space.</strong><small>No public registration, no social feed, and no strangers browsing your story.</small></div>
+          </div>
         </form>
       </section>
     </main>
