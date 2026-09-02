@@ -14,11 +14,12 @@ import NotesView from './views/NotesView.jsx';
 import TimelineView from './views/TimelineView.jsx';
 import FavoritesView from './views/FavoritesView.jsx';
 import useDebouncedValue from './hooks/useDebouncedValue.js';
+import useMemoryGallery from './hooks/useMemoryGallery.js';
 import { apiRequest, apiUpload, setStoredToken } from './lib/api.js';
+import { appendMediaPreviews } from './lib/mediaPreview.js';
 import { blankSearch, firstNames, initials } from './lib/format.js';
 
 const NAV_ITEMS = ['home', 'gallery', 'notes', 'timeline', 'favorites'];
-const GALLERY_PAGE_SIZE = 18;
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -26,8 +27,6 @@ export default function App() {
   const [view, setView] = useState('home');
   const [dashboard, setDashboard] = useState(null);
   const [albums, setAlbums] = useState([]);
-  const [allMemories, setAllMemories] = useState([]);
-  const [memories, setMemories] = useState([]);
   const [notes, setNotes] = useState([]);
   const [timeline, setTimeline] = useState([]);
   const [favorites, setFavorites] = useState({ memories: [], notes: [], timeline: [] });
@@ -42,9 +41,6 @@ export default function App() {
   const [galleryFavorite, setGalleryFavorite] = useState(false);
   const [galleryType, setGalleryType] = useState('all');
   const [gallerySort, setGallerySort] = useState('newest');
-  const [memoryPage, setMemoryPage] = useState(1);
-  const [memoryHasMore, setMemoryHasMore] = useState(false);
-  const [memoryLoading, setMemoryLoading] = useState(false);
   const [timelineType, setTimelineType] = useState('');
   const [timelineFavorite, setTimelineFavorite] = useState(false);
   const [toast, setToast] = useState('');
@@ -53,8 +49,6 @@ export default function App() {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const toastTimerRef = useRef(null);
-  const memoryRequestRef = useRef(0);
-  const debouncedGalleryQuery = useDebouncedValue(galleryQuery, 350);
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
 
   const notify = useCallback((message) => {
@@ -62,6 +56,22 @@ export default function App() {
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     toastTimerRef.current = window.setTimeout(() => setToast(''), 2600);
   }, []);
+
+  const {
+    memories,
+    loading: memoryLoading,
+    hasMore: memoryHasMore,
+    loadMore: loadMoreMemories,
+    reload: loadMemories,
+  } = useMemoryGallery({
+    enabled: Boolean(session && view === 'gallery'),
+    query: galleryQuery,
+    album: galleryAlbum,
+    favorite: galleryFavorite,
+    type: galleryType,
+    sort: gallerySort,
+    notify,
+  });
 
   useEffect(() => () => {
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
@@ -83,40 +93,6 @@ export default function App() {
     setAlbums(albumList);
     setOnThisDay(day);
   }, []);
-
-  const loadMemories = useCallback(async () => {
-    const requestId = ++memoryRequestRef.current;
-    const params = new URLSearchParams();
-    if (debouncedGalleryQuery.trim()) params.set('q', debouncedGalleryQuery.trim());
-    if (galleryAlbum) params.set('albumId', galleryAlbum);
-    if (galleryFavorite) params.set('favorite', '1');
-    if (galleryType !== 'all') params.set('type', galleryType);
-    params.set('sort', gallerySort);
-
-    setMemoryLoading(true);
-    try {
-      const response = await apiRequest(`/api/memories?${params}`);
-      if (requestId !== memoryRequestRef.current) return;
-
-      const items = Array.isArray(response) ? response : (response.items || []);
-      setAllMemories(items);
-      setMemories(items.slice(0, GALLERY_PAGE_SIZE));
-      setMemoryPage(1);
-      setMemoryHasMore(items.length > GALLERY_PAGE_SIZE);
-    } catch (err) {
-      if (requestId === memoryRequestRef.current) notify(err.message);
-    } finally {
-      if (requestId === memoryRequestRef.current) setMemoryLoading(false);
-    }
-  }, [debouncedGalleryQuery, galleryAlbum, galleryFavorite, galleryType, gallerySort, notify]);
-
-  const loadMoreMemories = useCallback(() => {
-    const nextPage = memoryPage + 1;
-    const nextCount = nextPage * GALLERY_PAGE_SIZE;
-    setMemories(allMemories.slice(0, nextCount));
-    setMemoryPage(nextPage);
-    setMemoryHasMore(allMemories.length > nextCount);
-  }, [allMemories, memoryPage]);
 
   const loadNotes = useCallback(async () => {
     try {
@@ -165,11 +141,6 @@ export default function App() {
     initialize();
     return () => { active = false; };
   }, []);
-
-  useEffect(() => {
-    if (!session || view !== 'gallery') return;
-    loadMemories();
-  }, [session, view, loadMemories]);
 
   useEffect(() => {
     if (!session || view !== 'notes') return;
@@ -266,7 +237,9 @@ export default function App() {
           const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
           data.append('fileDates[]', local.toISOString().slice(0, 10));
         });
+
         setUploadProgress(1);
+        await appendMediaPreviews(data, files);
         await apiUpload('/api/memories', data, setUploadProgress);
       }
 
