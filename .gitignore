@@ -4,3 +4,4 @@ dist/
 .env.local
 .DS_Store
 .vscode/
+src/__zawsze_app_v2__.jsx
