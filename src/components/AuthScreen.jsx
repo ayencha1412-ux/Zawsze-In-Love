@@ -1,15 +1,8 @@
 import { useState } from 'react';
-import photo1 from '../assets/photo-1.webp';
-import photo2 from '../assets/photo-2.webp';
-import photo3 from '../assets/photo-3.webp';
+import PolaroidFrame from './PolaroidFrame.jsx';
 import RomanticBackdrop from './RomanticBackdrop.jsx';
+import FEATURED_MEMORIES from '../data/featuredMemories.js';
 import { apiRequest, setStoredToken } from '../lib/api.js';
-
-const FEATURED = [
-  { src: photo1, caption: 'that one afternoon' },
-  { src: photo2, caption: 'still my favorite' },
-  { src: photo3, caption: 'just because' },
-];
 
 export default function AuthScreen({ onAuthenticated }) {
   const [error, setError] = useState('');
@@ -60,13 +53,23 @@ export default function AuthScreen({ onAuthenticated }) {
           <span><b>∞</b> Built to keep growing</span>
         </div>
 
-        <div className="auth-polaroids landing-polaroids" aria-hidden="true">
-          {FEATURED.map((photo, index) => (
-            <figure className={`mini-pol p${index + 1}`} key={photo.caption}>
-              <img src={photo.src} alt="" decoding="async" />
-              <figcaption>{photo.caption}</figcaption>
-            </figure>
-          ))}
+        <div className="landing-memory-board" aria-hidden="true">
+          <div className="memory-board-heading">
+            <span>from our camera roll</span>
+            <small>three little pieces of us</small>
+          </div>
+          <div className="auth-polaroids landing-polaroids">
+            {FEATURED_MEMORIES.map((photo, index) => (
+              <PolaroidFrame
+                key={photo.caption}
+                photo={photo}
+                index={index}
+                variant="landing"
+                decorative
+              />
+            ))}
+          </div>
+          <span className="memory-board-note">kept here, not lost in the scroll ♡</span>
         </div>
       </section>
 
@@ -94,5 +97,3 @@ export default function AuthScreen({ onAuthenticated }) {
     </main>
   );
 }
-
-export { FEATURED };
