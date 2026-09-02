@@ -1,11 +1,54 @@
 /* Rendering safeguards for long archive pages. Keep this file visual-neutral. */
 .notes .note,
-.thread .timeline-card {
+.thread .timeline-card,
+.gallery .memory-card {
   content-visibility: auto;
 }
 
 .notes .note { contain-intrinsic-size: 700px 220px; }
 .thread .timeline-card { contain-intrinsic-size: 700px 260px; }
+.gallery .memory-card { contain-intrinsic-size: 320px 390px; }
+
+.memory-preview-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.memory-preview-shell > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.memory-video-play {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  background: rgba(20, 16, 18, .68);
+  color: white;
+  font-size: 1rem;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+.video-placeholder {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+}
+
+.video-placeholder small {
+  font-size: .7rem;
+  opacity: .65;
+}
 
 .gallery-status {
   margin: 18px 0 0;
