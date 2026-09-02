@@ -34,7 +34,9 @@ class MemoryController extends Controller
 
         if (! empty($validated['q'])) {
             $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($validated['q'])).'%';
-            $query->where(fn ($q) => $q->where('caption', 'like', $term)->orWhere('location', 'like', $term));
+            $query->where(fn ($q) => $q->where('caption', 'like', $term)
+                ->orWhere('description', 'like', $term)
+                ->orWhere('location', 'like', $term));
         }
 
         if (! empty($validated['albumId'])) {
@@ -76,6 +78,7 @@ class MemoryController extends Controller
             'fileDates' => ['nullable', 'array'],
             'fileDates.*' => ['nullable', 'date'],
             'caption' => ['nullable', 'string', 'max:180'],
+            'description' => ['nullable', 'string', 'max:2000'],
             'memoryDate' => ['nullable', 'date'],
             'location' => ['nullable', 'string', 'max:160'],
             'albumId' => ['nullable', 'integer'],
@@ -106,6 +109,12 @@ class MemoryController extends Controller
                 $mediaType = str_starts_with($mime, 'video/') ? 'video' : 'image';
                 $takenAt = ! empty($fileDates[$index]) ? Carbon::parse($fileDates[$index]) : $fallbackDate->copy();
                 $path = $file->store("spaces/{$space->id}/memories", 'private');
+                $sourceKey = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+                $preset = config('memory_captions.'.$sourceKey, []);
+                $captionInput = trim((string) $request->input('caption', ''));
+                $descriptionInput = trim((string) $request->input('description', ''));
+                $caption = $captionInput !== '' ? $captionInput : ($preset['title'] ?? $sourceKey);
+                $description = $descriptionInput !== '' ? $descriptionInput : ($preset['description'] ?? null);
 
                 $memory = Memory::create([
                     'space_id' => $space->id,
@@ -118,7 +127,8 @@ class MemoryController extends Controller
                     'original_name' => $file->getClientOriginalName(),
                     'mime_type' => $mime,
                     'size_bytes' => $file->getSize(),
-                    'caption' => $request->input('caption') ?: pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME),
+                    'caption' => $caption,
+                    'description' => $description,
                     'location' => $request->input('location') ?: null,
                     'is_locked' => $locked,
                     'taken_at' => $takenAt,
@@ -141,6 +151,7 @@ class MemoryController extends Controller
         $space = $request->attributes->get('zawsze_space');
         $validated = $request->validate([
             'caption' => ['sometimes', 'nullable', 'string', 'max:180'],
+            'description' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'memoryDate' => ['sometimes', 'nullable', 'date'],
             'taken_at' => ['sometimes', 'nullable', 'date'],
             'location' => ['sometimes', 'nullable', 'string', 'max:160'],
@@ -154,6 +165,7 @@ class MemoryController extends Controller
         }
 
         if (array_key_exists('caption', $validated)) $memory->caption = $validated['caption'];
+        if (array_key_exists('description', $validated)) $memory->description = $validated['description'];
         if (array_key_exists('location', $validated)) $memory->location = $validated['location'];
         if (array_key_exists('albumId', $validated)) $memory->album_id = $validated['albumId'] ?: null;
         if (array_key_exists('isLocked', $validated)) $memory->is_locked = $validated['isLocked'];
@@ -223,6 +235,7 @@ class MemoryController extends Controller
         $payload = [
             'id' => $memory->id,
             'caption' => $locked ? 'Locked memory' : $memory->caption,
+            'description' => $locked ? null : $memory->description,
             'location' => $locked ? null : $memory->location,
             'memoryDate' => optional($memory->taken_at)->format('Y-m-d'),
             'memory_date' => optional($memory->taken_at)->format('Y-m-d'),
