@@ -3,299 +3,504 @@ import photo1 from './assets/photo-1.webp';
 import photo2 from './assets/photo-2.webp';
 import photo3 from './assets/photo-3.webp';
 
-const seedPhotos = [
-  { id: 1, src: photo1, caption: 'that one afternoon', alt: 'A memory worth keeping' },
-  { id: 2, src: photo2, caption: 'still my favorite', alt: 'A favorite saved memory' },
-  { id: 3, src: photo3, caption: 'just because', alt: 'A simple memory worth saving' },
+const MEMBERS = ['You', 'Love'];
+const COMMENT_STORAGE_KEY = 'zawsze-comments-v2';
+
+const seedMemories = [
+  {
+    id: 'seed-1',
+    type: 'image',
+    src: photo1,
+    title: 'that one afternoon',
+    date: '2026-08-12',
+    note: 'One of those ordinary days that somehow became a favorite.',
+    alt: 'A memory worth keeping',
+  },
+  {
+    id: 'seed-2',
+    type: 'image',
+    src: photo2,
+    title: 'still my favorite',
+    date: '2026-06-21',
+    note: 'Saved here because camera rolls are too easy to lose things in.',
+    alt: 'A favorite saved memory',
+  },
+  {
+    id: 'seed-3',
+    type: 'image',
+    src: photo3,
+    title: 'just because',
+    date: '2026-03-09',
+    note: 'No big occasion. Just us, and that was enough.',
+    alt: 'A simple memory worth saving',
+  },
 ];
 
-const seedNotes = [
-  { id: 1, author: 'You', body: 'saving this here so I never lose it.', time: 'Aug 12' },
-  { id: 2, author: 'Me', body: 'this is going to be a nice little archive of us.', time: 'Aug 14' },
-];
-
-const seedMoments = [
-  { id: 1, date: 'Jan 2026', title: 'Where it started', desc: 'The first real conversation.' },
-  { id: 2, date: 'Mar 2026', title: 'The trip', desc: 'A little chapter worth remembering.' },
-  { id: 3, date: 'Sep 2026', title: 'This little site', desc: 'Built to keep the things we do not want to lose.' },
-];
-
-const STORAGE = {
-  notes: 'zawsze-notes-v1',
-  moments: 'zawsze-moments-v1',
+const seedComments = {
+  'seed-1': [
+    {
+      id: 'comment-1',
+      author: 'Love',
+      body: 'keep this one forever please ♡',
+      createdAt: '2026-08-13T10:30:00.000Z',
+    },
+  ],
+  'seed-2': [
+    {
+      id: 'comment-2',
+      author: 'You',
+      body: 'This is exactly why I wanted our own little archive.',
+      createdAt: '2026-08-14T08:15:00.000Z',
+    },
+  ],
 };
 
-function readStored(key, fallback) {
+function readStoredComments() {
   try {
-    const value = localStorage.getItem(key);
-    return value ? JSON.parse(value) : fallback;
+    const stored = localStorage.getItem(COMMENT_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : seedComments;
   } catch {
-    return fallback;
+    return seedComments;
   }
 }
 
-function App() {
-  const [active, setActive] = useState('gallery');
-  const [photos, setPhotos] = useState(seedPhotos);
-  const [notes, setNotes] = useState(() => readStored(STORAGE.notes, seedNotes));
-  const [moments, setMoments] = useState(() => readStored(STORAGE.moments, seedMoments));
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [momentOpen, setMomentOpen] = useState(false);
-  const [lightbox, setLightbox] = useState(null);
-  const uploadInput = useRef(null);
+function dateValue(value) {
+  const time = new Date(`${value}T12:00:00`).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
 
-  useEffect(() => localStorage.setItem(STORAGE.notes, JSON.stringify(notes)), [notes]);
-  useEffect(() => localStorage.setItem(STORAGE.moments, JSON.stringify(moments)), [moments]);
+function displayDate(value, options = { month: 'short', day: 'numeric', year: 'numeric' }) {
+  if (!value) return 'No date yet';
+  return new Intl.DateTimeFormat('en-US', options).format(new Date(`${value}T12:00:00`));
+}
+
+function dateFromFile(file) {
+  if (!file?.lastModified) return '';
+  const date = new Date(file.lastModified);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+function titleFromFile(file) {
+  return file.name.replace(/\.[^/.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'untitled memory';
+}
+
+function commentTime(value) {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function App() {
+  const [activeSection, setActiveSection] = useState('memories');
+  const [memories, setMemories] = useState(seedMemories);
+  const [comments, setComments] = useState(readStoredComments);
+  const [mediaFilter, setMediaFilter] = useState('all');
+  const [sortOrder, setSortOrder] = useState('newest');
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [selectedMemory, setSelectedMemory] = useState(null);
+  const [uploadFiles, setUploadFiles] = useState([]);
+  const [commentAuthor, setCommentAuthor] = useState('You');
+  const [commentDraft, setCommentDraft] = useState('');
+  const uploadInput = useRef(null);
+  const sessionUrls = useRef([]);
 
   useEffect(() => {
-    const ids = ['gallery', 'messages', 'timeline'];
-    const nodes = ids.map((id) => document.getElementById(id)).filter(Boolean);
+    localStorage.setItem(COMMENT_STORAGE_KEY, JSON.stringify(comments));
+  }, [comments]);
+
+  useEffect(() => {
+    const sections = ['memories', 'timeline']
+      .map((id) => document.getElementById(id))
+      .filter(Boolean);
+
     const observer = new IntersectionObserver((entries) => {
       const visible = entries
         .filter((entry) => entry.isIntersecting)
         .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-      if (visible) setActive(visible.target.id);
-    }, { rootMargin: '-22% 0px -58% 0px', threshold: [0, .1, .35] });
-    nodes.forEach((node) => observer.observe(node));
+      if (visible) setActiveSection(visible.target.id);
+    }, { rootMargin: '-25% 0px -60% 0px', threshold: [0, 0.1, 0.35] });
+
+    sections.forEach((section) => observer.observe(section));
     return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
-    const onKey = (event) => {
+    const closeOnEscape = (event) => {
       if (event.key === 'Escape') {
         setUploadOpen(false);
-        setMomentOpen(false);
-        setLightbox(null);
+        setSelectedMemory(null);
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
   }, []);
 
-  const totalKeepsakes = useMemo(() => photos.length + notes.length + moments.length, [photos, notes, moments]);
+  useEffect(() => () => {
+    sessionUrls.current.forEach((url) => URL.revokeObjectURL(url));
+  }, []);
+
+  const sortedMemories = useMemo(() => {
+    const filtered = mediaFilter === 'all'
+      ? memories
+      : memories.filter((memory) => memory.type === mediaFilter);
+
+    return [...filtered].sort((a, b) => {
+      const difference = dateValue(b.date) - dateValue(a.date);
+      return sortOrder === 'newest' ? difference : -difference;
+    });
+  }, [memories, mediaFilter, sortOrder]);
+
+  const timelineGroups = useMemo(() => {
+    const chronological = [...memories].sort((a, b) => dateValue(b.date) - dateValue(a.date));
+    return chronological.reduce((groups, memory) => {
+      const label = displayDate(memory.date, { month: 'long', year: 'numeric' });
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(memory);
+      return groups;
+    }, {});
+  }, [memories]);
+
+  const stats = useMemo(() => {
+    const photos = memories.filter((memory) => memory.type === 'image').length;
+    const videos = memories.filter((memory) => memory.type === 'video').length;
+    const totalComments = Object.values(comments).reduce((sum, list) => sum + list.length, 0);
+    return { photos, videos, totalComments, total: memories.length };
+  }, [memories, comments]);
+
+  const selectedComments = selectedMemory ? comments[selectedMemory.id] || [] : [];
 
   const goTo = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const addPhoto = (event) => {
+  const openMemory = (memory) => {
+    setSelectedMemory(memory);
+    setCommentDraft('');
+  };
+
+  const handleFileSelection = (event) => {
+    setUploadFiles(Array.from(event.target.files || []));
+  };
+
+  const closeUpload = () => {
+    setUploadOpen(false);
+    setUploadFiles([]);
+  };
+
+  const addMemories = (event) => {
     event.preventDefault();
+    if (!uploadFiles.length) return;
+
     const form = event.currentTarget;
-    const file = form.elements.photo?.files?.[0];
-    const caption = form.elements.caption?.value?.trim() || 'untitled memory';
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPhotos((current) => [{ id: Date.now(), src: reader.result, caption, alt: caption }, ...current]);
-      form.reset();
-      setUploadOpen(false);
+    const sharedTitle = form.elements.caption.value.trim();
+    const sharedDate = form.elements.memoryDate.value;
+    const useFileDates = form.elements.useFileDates.checked;
+
+    const additions = uploadFiles.map((file, index) => {
+      const src = URL.createObjectURL(file);
+      sessionUrls.current.push(src);
+      const type = file.type.startsWith('video/') ? 'video' : 'image';
+      const date = useFileDates ? dateFromFile(file) || sharedDate : sharedDate;
+      const baseTitle = sharedTitle || titleFromFile(file);
+
+      return {
+        id: `session-${Date.now()}-${index}`,
+        type,
+        src,
+        title: uploadFiles.length > 1 && sharedTitle ? `${baseTitle} · ${index + 1}` : baseTitle,
+        date: date || new Date().toISOString().slice(0, 10),
+        note: '',
+        alt: type === 'image' ? baseTitle : '',
+        source: 'session',
+      };
+    });
+
+    setMemories((current) => [...additions, ...current]);
+    form.reset();
+    closeUpload();
+  };
+
+  const addComment = (event) => {
+    event.preventDefault();
+    const body = commentDraft.trim();
+    if (!selectedMemory || !body) return;
+
+    const comment = {
+      id: `comment-${Date.now()}`,
+      author: commentAuthor,
+      body,
+      createdAt: new Date().toISOString(),
     };
-    reader.readAsDataURL(file);
-  };
 
-  const addNote = (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const author = form.elements.author.value.trim();
-    const body = form.elements.body.value.trim();
-    if (!author || !body) return;
-    setNotes((current) => [...current, { id: Date.now(), author, body, time: 'just now' }]);
-    form.reset();
-  };
-
-  const addMoment = (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const title = form.elements.title.value.trim();
-    const dateValue = form.elements.date.value;
-    const desc = form.elements.description.value.trim();
-    if (!title) return;
-    const prettyDate = dateValue
-      ? new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(new Date(`${dateValue}T00:00:00`))
-      : '';
-    setMoments((current) => [...current, { id: Date.now(), title, date: prettyDate, desc }]);
-    form.reset();
-    setMomentOpen(false);
+    setComments((current) => ({
+      ...current,
+      [selectedMemory.id]: [...(current[selectedMemory.id] || []), comment],
+    }));
+    setCommentDraft('');
   };
 
   return (
     <div className="site-shell">
       <header className="navbar">
-        <button className="brand" type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Back to top">
+        <button className="brand" type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
           <span className="brand-mark">♡</span>
-          <span>Zawsze</span>
+          <span className="brand-copy"><strong>Zawsze</strong><small>in Love</small></span>
         </button>
-        <nav className="pill-group" aria-label="Memory lane sections">
-          {['gallery', 'messages', 'timeline'].map((id) => (
-            <button key={id} className={`pill ${active === id ? 'is-active' : ''}`} type="button" onClick={() => goTo(id)}>
-              {id[0].toUpperCase() + id.slice(1)}
-            </button>
-          ))}
+
+        <nav className="pill-group" aria-label="Zawsze sections">
+          <button className={`pill ${activeSection === 'memories' ? 'is-active' : ''}`} type="button" onClick={() => goTo('memories')}>Memories</button>
+          <button className={`pill ${activeSection === 'timeline' ? 'is-active' : ''}`} type="button" onClick={() => goTo('timeline')}>Timeline</button>
         </nav>
-        <div className="nav-count" title="Saved keepsakes">{totalKeepsakes} saved</div>
+
+        <div className="couple-lock" title="Designed for two private accounts">
+          <span className="avatar-chip">Y</span>
+          <span className="avatar-chip love">L</span>
+          <span>2 people only</span>
+        </div>
       </header>
 
       <main>
         <section className="hero" aria-labelledby="hero-title">
-          <div className="hero-text hero-reveal">
-            <div className="eyebrow">our little corner of the internet</div>
-            <h1 id="hero-title">Every little thing<br /><em>worth keeping.</em></h1>
-            <p className="lede">A quiet place for the photos, words, and moments we do not want to lose in a camera roll.</p>
+          <div className="hero-copy">
+            <div className="eyebrow">a private memory space for the two of us</div>
+            <h1 id="hero-title">Two people.<br /><em>One memory lane.</em></h1>
+            <p className="lede">Photos, videos, little comments, and the dates that matter — kept together instead of disappearing into two different camera rolls.</p>
+
             <div className="hero-actions">
-              <button className="btn primary" type="button" onClick={() => goTo('gallery')}>Open the gallery <span>↘</span></button>
-              <span className="microcopy">pink, red & beige — kept soft on purpose</span>
+              <button className="btn primary" type="button" onClick={() => setUploadOpen(true)}>＋ Add memories</button>
+              <button className="btn ghost" type="button" onClick={() => goTo('memories')}>Browse everything ↓</button>
+            </div>
+
+            <div className="hero-stats" aria-label="Memory statistics">
+              <div><strong>{stats.total}</strong><span>memories</span></div>
+              <div><strong>{stats.photos}</strong><span>photos</span></div>
+              <div><strong>{stats.videos}</strong><span>videos</span></div>
+              <div><strong>{stats.totalComments}</strong><span>comments</span></div>
             </div>
           </div>
 
-          <div className="hero-stack" aria-label="Featured memories">
-            {seedPhotos.map((photo, index) => (
-              <button key={photo.id} className={`hero-polaroid p${index + 1}`} type="button" onClick={() => setLightbox(photo)}>
-                <img src={photo.src} alt={photo.alt} />
-                <span className="tag">{photo.caption}</span>
+          <div className="hero-visual" aria-label="Featured memories">
+            <div className="hero-paper-note">sorted by when it happened,<br />not when it was uploaded ♡</div>
+            {seedMemories.map((memory, index) => (
+              <button className={`hero-polaroid hero-p${index + 1}`} key={memory.id} type="button" onClick={() => openMemory(memory)}>
+                <img src={memory.src} alt={memory.alt} />
+                <span className="polaroid-date">{displayDate(memory.date, { month: 'short', day: 'numeric' })}</span>
+                <span className="polaroid-title">{memory.title}</span>
               </button>
             ))}
-            <span className="doodle doodle-one" aria-hidden="true">♡</span>
-            <span className="doodle doodle-two" aria-hidden="true">✦</span>
+            <span className="hero-doodle heart" aria-hidden="true">♡</span>
+            <span className="hero-doodle star" aria-hidden="true">✦</span>
           </div>
         </section>
 
-        <section className="section" id="gallery">
-          <div className="gallery-toolbar">
+        <section className="section" id="memories">
+          <div className="section-heading-row">
             <div className="section-head">
-              <span className="section-index">01</span>
-              <h2>The gallery</h2>
-              <p>Every picture, kept the way it deserves.</p>
+              <span className="section-index">01 / our archive</span>
+              <h2>Everything worth keeping.</h2>
+              <p>Upload one memory or a whole batch. Photos and videos live in the same archive and can be sorted by their memory date.</p>
             </div>
-            <button className="btn primary" type="button" onClick={() => setUploadOpen(true)}>＋ Add a photo</button>
+            <button className="btn primary" type="button" onClick={() => setUploadOpen(true)}>＋ Upload photos & videos</button>
           </div>
 
-          <div className="gallery" aria-live="polite">
-            {photos.map((photo, index) => (
-              <button className="gcard" type="button" key={photo.id} onClick={() => setLightbox(photo)} style={{ '--r': `${[-2.4, 1.8, -1, 2.8][index % 4]}deg` }}>
-                <img className="frame" src={photo.src} alt={photo.alt || photo.caption} />
-                <span className="cap">{photo.caption}</span>
-                <span className="photo-no">0{index + 1}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="section section-wash" id="messages">
-          <div className="section-head">
-            <span className="section-index">02</span>
-            <h2>The messages</h2>
-            <p>Words worth saving, in the order they were said.</p>
-          </div>
-
-          <div className="messages-layout">
-            <div className="notes" aria-live="polite">
-              {notes.map((note) => (
-                <article className="note" key={note.id}>
-                  <div className="note-head">
-                    <span className="note-author">{note.author}</span>
-                    <time className="note-time">{note.time}</time>
-                  </div>
-                  <p className="note-body">{note.body}</p>
-                </article>
+          <div className="memory-toolbar">
+            <div className="filter-pills" aria-label="Filter media">
+              {[
+                ['all', 'All'],
+                ['image', 'Photos'],
+                ['video', 'Videos'],
+              ].map(([value, label]) => (
+                <button className={`filter-pill ${mediaFilter === value ? 'active' : ''}`} key={value} type="button" onClick={() => setMediaFilter(value)}>{label}</button>
               ))}
             </div>
 
-            <form className="composer" onSubmit={addNote}>
-              <div className="composer-heading">
-                <span className="mini-heart">♡</span>
-                <div><strong>Leave something here</strong><small>Saved on this browser for now.</small></div>
-              </div>
-              <label>
-                <span>Your name</span>
-                <input name="author" type="text" placeholder="Name" required maxLength="40" />
-              </label>
-              <label>
-                <span>Message</span>
-                <textarea name="body" placeholder="Write something worth keeping..." required maxLength="600" />
-              </label>
-              <button className="btn primary" type="submit">Save message ♡</button>
-            </form>
+            <label className="sort-control">
+              <span>Sort by date</span>
+              <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)}>
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+              </select>
+            </label>
           </div>
+
+          <div className="memory-grid" aria-live="polite">
+            {sortedMemories.map((memory, index) => {
+              const count = comments[memory.id]?.length || 0;
+              return (
+                <article className="memory-card" key={memory.id} style={{ '--tilt': `${[-1.2, 0.7, -0.4, 1.1][index % 4]}deg` }}>
+                  <button className="memory-media" type="button" onClick={() => openMemory(memory)} aria-label={`Open ${memory.title}`}>
+                    {memory.type === 'video' ? (
+                      <>
+                        <video src={memory.src} muted preload="metadata" playsInline />
+                        <span className="video-badge">▶ video</span>
+                      </>
+                    ) : (
+                      <img src={memory.src} alt={memory.alt || memory.title} />
+                    )}
+                  </button>
+                  <div className="memory-meta">
+                    <div>
+                      <time>{displayDate(memory.date)}</time>
+                      <h3>{memory.title}</h3>
+                    </div>
+                    <button className="comment-count" type="button" onClick={() => openMemory(memory)} aria-label={`${count} comments on ${memory.title}`}>♡ {count}</button>
+                  </div>
+                  {memory.note && <p>{memory.note}</p>}
+                  {memory.source === 'session' && <span className="session-badge">session preview</span>}
+                </article>
+              );
+            })}
+          </div>
+
+          {!sortedMemories.length && (
+            <div className="empty-state">
+              <span>♡</span>
+              <h3>No memories in this filter yet.</h3>
+              <button className="btn soft" type="button" onClick={() => setUploadOpen(true)}>Add the first one</button>
+            </div>
+          )}
         </section>
 
-        <section className="section" id="timeline">
-          <div className="timeline-head">
+        <section className="section timeline-section" id="timeline">
+          <div className="section-heading-row timeline-title-row">
             <div className="section-head">
-              <span className="section-index">03</span>
-              <h2>The timeline</h2>
-              <p>How it has gone so far.</p>
+              <span className="section-index">02 / by date</span>
+              <h2>Our timeline.</h2>
+              <p>The same archive, grouped by month so it reads more like a story than a folder.</p>
             </div>
-            <button className="btn soft" type="button" onClick={() => setMomentOpen(true)}>＋ Add a moment</button>
+            <div className="timeline-note">new uploads can use each file's date automatically</div>
           </div>
 
-          <ol className="thread">
-            {moments.map((moment, index) => (
-              <li className="t-item" key={moment.id}>
-                <span className="thread-dot" aria-hidden="true" />
-                <div className="t-date">{moment.date || `Moment ${index + 1}`}</div>
-                <div className="t-title">{moment.title}</div>
-                {moment.desc && <p className="t-desc">{moment.desc}</p>}
-              </li>
+          <div className="timeline-list">
+            {Object.entries(timelineGroups).map(([month, items]) => (
+              <div className="timeline-group" key={month}>
+                <div className="timeline-month"><span>{month}</span></div>
+                <div className="timeline-items">
+                  {items.map((memory) => (
+                    <button className="timeline-memory" key={memory.id} type="button" onClick={() => openMemory(memory)}>
+                      <div className="timeline-thumb">
+                        {memory.type === 'video' ? <video src={memory.src} muted preload="metadata" playsInline /> : <img src={memory.src} alt="" />}
+                        {memory.type === 'video' && <span>▶</span>}
+                      </div>
+                      <div>
+                        <time>{displayDate(memory.date, { month: 'short', day: 'numeric', year: 'numeric' })}</time>
+                        <strong>{memory.title}</strong>
+                        <small>{comments[memory.id]?.length || 0} comments</small>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
-          </ol>
+          </div>
         </section>
       </main>
 
       <footer>
         <span className="footer-heart">♡</span>
-        <p>pink, red, and beige — for the things worth remembering.</p>
-        <small>Frontend 4 · ready to connect to the Zawsze API</small>
+        <p>Zawsze in Love — our photos, our videos, our little comments.</p>
+        <small>React frontend · Laravel API connection prepared</small>
       </footer>
 
       {uploadOpen && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && setUploadOpen(false)}>
-          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="upload-title">
-            <button className="modal-close" type="button" onClick={() => setUploadOpen(false)} aria-label="Close">×</button>
-            <div className="modal-kicker">new keepsake</div>
-            <h3 id="upload-title">Add a photo</h3>
-            <form className="modal-form" onSubmit={addPhoto}>
-              <label className="upload-drop" onClick={() => uploadInput.current?.click()}>
-                <input ref={uploadInput} name="photo" type="file" accept="image/*" required />
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && closeUpload()}>
+          <section className="modal upload-modal" role="dialog" aria-modal="true" aria-labelledby="upload-title">
+            <button className="modal-close" type="button" onClick={closeUpload} aria-label="Close upload">×</button>
+            <div className="modal-kicker">add to our archive</div>
+            <h2 id="upload-title">Upload memories</h2>
+            <p className="modal-intro">Choose one file or a whole batch. Images and videos can be selected together.</p>
+
+            <form className="modal-form" onSubmit={addMemories}>
+              <button className="upload-drop" type="button" onClick={() => uploadInput.current?.click()}>
+                <input ref={uploadInput} type="file" accept="image/*,video/*" multiple onChange={handleFileSelection} />
                 <span className="upload-icon">＋</span>
-                <strong>Choose a photo</strong>
-                <small>JPG, PNG, WEBP or HEIC</small>
+                <strong>{uploadFiles.length ? `${uploadFiles.length} file${uploadFiles.length === 1 ? '' : 's'} selected` : 'Choose photos & videos'}</strong>
+                <small>Bulk selection is supported · images + video</small>
+              </button>
+
+              {uploadFiles.length > 0 && (
+                <div className="selected-files">
+                  {uploadFiles.slice(0, 4).map((file) => <span key={`${file.name}-${file.lastModified}`}>{file.name}</span>)}
+                  {uploadFiles.length > 4 && <span>+ {uploadFiles.length - 4} more</span>}
+                </div>
+              )}
+
+              <label className="field">
+                <span>Shared caption <em>optional</em></span>
+                <input name="caption" maxLength="80" placeholder="Weekend in... / our little date / just because" />
               </label>
-              <label className="field"><span>Caption</span><input name="caption" maxLength="60" placeholder="A little note about it" /></label>
+
+              <label className="field">
+                <span>Fallback memory date</span>
+                <input name="memoryDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+              </label>
+
+              <label className="checkbox-field">
+                <input name="useFileDates" type="checkbox" defaultChecked />
+                <span><strong>Use each file's original date when available</strong><small>Better for mass uploads because memories stay in their real order.</small></span>
+              </label>
+
+              <div className="prototype-note">
+                <strong>Frontend preview behavior</strong>
+                <span>New media stays for this browser session only. The Laravel backend will make uploads permanent and shared between both accounts.</span>
+              </div>
+
               <div className="modal-actions">
-                <button type="button" className="btn soft" onClick={() => setUploadOpen(false)}>Cancel</button>
-                <button type="submit" className="btn primary">Save photo</button>
+                <button className="btn ghost" type="button" onClick={closeUpload}>Cancel</button>
+                <button className="btn primary" type="submit" disabled={!uploadFiles.length}>Add {uploadFiles.length || ''} {uploadFiles.length === 1 ? 'memory' : 'memories'}</button>
               </div>
             </form>
           </section>
         </div>
       )}
 
-      {momentOpen && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && setMomentOpen(false)}>
-          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="moment-title">
-            <button className="modal-close" type="button" onClick={() => setMomentOpen(false)} aria-label="Close">×</button>
-            <div className="modal-kicker">another chapter</div>
-            <h3 id="moment-title">Add a moment</h3>
-            <form className="modal-form" onSubmit={addMoment}>
-              <label className="field"><span>Title</span><input name="title" required maxLength="80" placeholder="What happened?" /></label>
-              <label className="field"><span>Date</span><input name="date" type="date" /></label>
-              <label className="field"><span>Description</span><textarea name="description" maxLength="300" placeholder="A short memory..." /></label>
-              <div className="modal-actions">
-                <button type="button" className="btn soft" onClick={() => setMomentOpen(false)}>Cancel</button>
-                <button type="submit" className="btn primary">Save moment</button>
-              </div>
-            </form>
-          </section>
-        </div>
-      )}
+      {selectedMemory && (
+        <div className="memory-dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setSelectedMemory(null)}>
+          <section className="memory-dialog" role="dialog" aria-modal="true" aria-labelledby="memory-title">
+            <button className="dialog-close" type="button" onClick={() => setSelectedMemory(null)} aria-label="Close memory">×</button>
 
-      {lightbox && (
-        <div className="lightbox" role="presentation" onClick={() => setLightbox(null)}>
-          <button className="lightbox-close" type="button" onClick={() => setLightbox(null)} aria-label="Close photo">×</button>
-          <figure onClick={(event) => event.stopPropagation()}>
-            <img src={lightbox.src} alt={lightbox.alt || lightbox.caption} />
-            <figcaption>{lightbox.caption}</figcaption>
-          </figure>
+            <div className="dialog-media">
+              {selectedMemory.type === 'video' ? (
+                <video src={selectedMemory.src} controls playsInline preload="metadata" />
+              ) : (
+                <img src={selectedMemory.src} alt={selectedMemory.alt || selectedMemory.title} />
+              )}
+            </div>
+
+            <aside className="dialog-panel">
+              <div className="dialog-heading">
+                <time>{displayDate(selectedMemory.date)}</time>
+                <h2 id="memory-title">{selectedMemory.title}</h2>
+                {selectedMemory.note && <p>{selectedMemory.note}</p>}
+              </div>
+
+              <div className="comment-section">
+                <div className="comment-heading"><strong>Our comments</strong><span>{selectedComments.length}</span></div>
+                <div className="comment-list">
+                  {selectedComments.length ? selectedComments.map((comment) => (
+                    <article className={`comment ${comment.author === 'Love' ? 'from-love' : ''}`} key={comment.id}>
+                      <div><strong>{comment.author}</strong><time>{commentTime(comment.createdAt)}</time></div>
+                      <p>{comment.body}</p>
+                    </article>
+                  )) : <p className="no-comments">No comments yet. Leave the first little note.</p>}
+                </div>
+
+                <form className="comment-form" onSubmit={addComment}>
+                  <div className="member-toggle" aria-label="Comment as">
+                    {MEMBERS.map((member) => (
+                      <button className={commentAuthor === member ? 'active' : ''} type="button" key={member} onClick={() => setCommentAuthor(member)}>{member}</button>
+                    ))}
+                  </div>
+                  <textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} maxLength="500" placeholder="Say something about this memory..." />
+                  <button className="btn primary" type="submit" disabled={!commentDraft.trim()}>Comment ♡</button>
+                </form>
+              </div>
+            </aside>
+          </section>
         </div>
       )}
     </div>
