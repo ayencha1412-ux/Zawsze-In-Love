@@ -1,36 +1,27 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const MARCH10_ASSET = './assets/march-10/march10-sprite.webp';
-const VIRTUAL_MARCH10 = '\0virtual:march10-sprite';
+const root = path.dirname(fileURLToPath(import.meta.url));
 
-function embeddedMarch10Sprite() {
+function zawszeAppParts() {
+  const publicId = 'virtual:zawsze-app-v2';
+  const resolvedId = '\0virtual:zawsze-app-v2.jsx';
   return {
-    name: 'embedded-march10-sprite',
-    enforce: 'pre',
-    resolveId(source, importer) {
-      if (source === MARCH10_ASSET && importer?.endsWith('/src/App.jsx')) {
-        return VIRTUAL_MARCH10;
-      }
-      return null;
-    },
+    name: 'zawsze-app-parts',
+    resolveId(id) { return id === publicId ? resolvedId : null; },
     load(id) {
-      if (id !== VIRTUAL_MARCH10) return null;
-
-      return `
-        import chunk1 from '/src/data/march10SpriteChunk1.js';
-        import chunk2 from '/src/data/march10SpriteChunk2.js';
-        import chunk3 from '/src/data/march10SpriteChunk3.js';
-        import chunk4 from '/src/data/march10SpriteChunk4.js';
-        import chunk5 from '/src/data/march10SpriteChunk5.js';
-        import chunk6 from '/src/data/march10SpriteChunk6.js';
-        import chunk7 from '/src/data/march10SpriteChunk7.js';
-        export default 'data:image/webp;base64,' + chunk1 + chunk2 + chunk3 + chunk4 + chunk5 + chunk6 + chunk7;
-      `;
+      if (id !== resolvedId) return null;
+      const dir = path.join(root, 'src', 'app-parts');
+      return fs.readdirSync(dir)
+        .filter((name) => name.endsWith('.jsx.txt'))
+        .sort()
+        .map((name) => fs.readFileSync(path.join(dir, name), 'utf8'))
+        .join('\n');
     },
   };
 }
 
-export default defineConfig({
-  plugins: [embeddedMarch10Sprite(), react()],
-});
+export default defineConfig({ plugins: [zawszeAppParts(), react()] });

@@ -1,0 +1,15 @@
+import { march10Sprite } from '/src/data/march10Sprite.js';
+
+const MARCH10 = [
+  'flash & a little attitude', 'tiny pose, big charm', 'soft look, camera ready', 'main character break',
+  'the little pout one', 'kissy face intermission', 'cute but unimpressed', 'caught smiling again',
+  'soft pout, softer moment', 'quiet little stare', 'smile unlocked', 'the whole mirror moment',
+  'vintage mirror mood', 'one silly second', 'flash, hair touch, done', 'that easy little smile',
+  'straight to the camera', 'smile in the middle', 'soft and unbothered', 'photographer mode on',
+].map((title, spriteIndex) => ({ title, spriteIndex, date: '2026-03-10' }));
+
+function March10Sprite({ index, label }) {
+  const column = index % 5;
+  const row = Math.floor(index / 5);
+  return <div className="march10-sprite" role="img" aria-label={label} style={{ backgroundImage: `url(${march10Sprite})`, backgroundPosition: `${column * 25}% ${row * (100 / 3)}%` }} />;
+}
