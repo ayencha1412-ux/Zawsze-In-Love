@@ -19,6 +19,7 @@ class Memory extends Model
         'mime_type',
         'size_bytes',
         'caption',
+        'description',
         'taken_at',
     ];
 
