@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('mime_type')->nullable();
             $table->unsignedBigInteger('size_bytes')->default(0);
             $table->string('caption', 500)->nullable();
+            $table->text('description')->nullable();
             $table->dateTime('taken_at')->nullable()->index();
             $table->timestamps();
             $table->index(['space_id', 'media_type']);
