@@ -1,66 +1,199 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import photo1 from './assets/photo-1.webp';
-import photo2 from './assets/photo-2.webp';
-import photo3 from './assets/photo-3.webp';
+import march10Sprite from './assets/march-10/march10-sprite.webp';
+import './sprite.css';
 
 const MEMBERS = ['You', 'Love'];
-const COMMENT_STORAGE_KEY = 'zawsze-comments-v2';
+const COMMENT_STORAGE_KEY = 'zawsze-comments-v3';
 
-const seedMemories = [
+const march10Memories = [
   {
-    id: 'seed-1',
+    id: 'march10-0448',
     type: 'image',
-    src: photo1,
-    title: 'that one afternoon',
-    date: '2026-08-12',
-    note: 'One of those ordinary days that somehow became a favorite.',
-    alt: 'A memory worth keeping',
+    spriteIndex: 0,
+    title: 'flash & a little attitude',
+    date: '2026-03-10',
+    note: 'The flash showed up loud, but the pose still won ♡',
+    alt: 'Mirror photo with a bright camera flash and a soft smile.',
   },
   {
-    id: 'seed-2',
+    id: 'march10-0453',
     type: 'image',
-    src: photo2,
-    title: 'still my favorite',
-    date: '2026-06-21',
-    note: 'Saved here because camera rolls are too easy to lose things in.',
-    alt: 'A favorite saved memory',
+    spriteIndex: 1,
+    title: 'tiny pose, big charm',
+    date: '2026-03-10',
+    note: 'Just a little hand pose and somehow the whole frame got sweeter.',
+    alt: 'Mirror photo with a camera flash and one hand near the collar.',
   },
   {
-    id: 'seed-3',
+    id: 'march10-0454',
     type: 'image',
-    src: photo3,
-    title: 'just because',
-    date: '2026-03-09',
-    note: 'No big occasion. Just us, and that was enough.',
-    alt: 'A simple memory worth saving',
+    spriteIndex: 2,
+    title: 'soft look, camera ready',
+    date: '2026-03-10',
+    note: 'A calm little mirror moment that deserved its own save button ♡',
+    alt: 'Mirror photo with a bright flash and a composed expression.',
+  },
+  {
+    id: 'march10-0466',
+    type: 'image',
+    spriteIndex: 3,
+    title: 'main character break',
+    date: '2026-03-10',
+    note: 'No flash needed — the look already knew what it was doing.',
+    alt: 'Close mirror photo holding a compact camera with arms lightly crossed.',
+  },
+  {
+    id: 'march10-0470',
+    type: 'image',
+    spriteIndex: 4,
+    title: 'the little pout one',
+    date: '2026-03-10',
+    note: 'A tiny pout for the archive because cute moods count too.',
+    alt: 'Mirror photo with a playful pout while holding a compact camera.',
+  },
+  {
+    id: 'march10-0474',
+    type: 'image',
+    spriteIndex: 5,
+    title: 'kissy face intermission',
+    date: '2026-03-10',
+    note: 'A quick kissy face because serious photos were clearly not enough ♡',
+    alt: 'Mirror photo with a playful kissy-face expression.',
+  },
+  {
+    id: 'march10-0475',
+    type: 'image',
+    spriteIndex: 6,
+    title: 'cute but unimpressed',
+    date: '2026-03-10',
+    note: 'The expression says “hmm,” but the photo says “keep me.”',
+    alt: 'Mirror photo with a mock-serious expression and one hand on the counter.',
+  },
+  {
+    id: 'march10-0481',
+    type: 'image',
+    spriteIndex: 7,
+    title: 'caught smiling again',
+    date: '2026-03-10',
+    note: 'That little smile turned the whole mirror shot warm.',
+    alt: 'Mirror photo smiling while one hand rests near the hair.',
+  },
+  {
+    id: 'march10-0484',
+    type: 'image',
+    spriteIndex: 8,
+    title: 'soft pout, softer moment',
+    date: '2026-03-10',
+    note: 'A tiny head tilt, a tiny pout, and one more reason to keep this set.',
+    alt: 'Mirror photo with a slight pout and tilted head.',
+  },
+  {
+    id: 'march10-0487',
+    type: 'image',
+    spriteIndex: 9,
+    title: 'quiet little stare',
+    date: '2026-03-10',
+    note: 'The calm expression made this one feel like a pause in the whole photo spree.',
+    alt: 'Mirror photo with a calm neutral expression.',
+  },
+  {
+    id: 'march10-0489',
+    type: 'image',
+    spriteIndex: 10,
+    title: 'smile unlocked',
+    date: '2026-03-10',
+    note: 'The smile finally won, and obviously this one had to stay ♡',
+    alt: 'Mirror photo with a bright happy smile.',
+  },
+  {
+    id: 'march10-0406',
+    type: 'image',
+    spriteIndex: 11,
+    title: 'the whole mirror moment',
+    date: '2026-03-10',
+    note: 'A wider little snapshot where the plants, the mirror, and the pose all joined in.',
+    alt: 'Wide mirror photo showing the full setting with plants and sinks.',
+  },
+  {
+    id: 'march10-0436',
+    type: 'image',
+    spriteIndex: 12,
+    title: 'vintage mirror mood',
+    date: '2026-03-10',
+    note: 'That warm old-film look made this mirror moment extra cozy.',
+    alt: 'Warm-toned mirror photo smiling beside a compact camera.',
+  },
+  {
+    id: 'march10-0437',
+    type: 'image',
+    spriteIndex: 13,
+    title: 'one silly second',
+    date: '2026-03-10',
+    note: 'A tiny tongue-out moment to keep the serious poses from getting too powerful ♡',
+    alt: 'Warm-toned playful mirror photo with a tongue-out expression.',
+  },
+  {
+    id: 'march10-0451',
+    type: 'image',
+    spriteIndex: 14,
+    title: 'flash, hair touch, done',
+    date: '2026-03-10',
+    note: 'The flash plus the little hair touch made this one effortlessly cute.',
+    alt: 'Mirror photo with bright camera flash and one hand touching the hair.',
+  },
+  {
+    id: 'march10-0456',
+    type: 'image',
+    spriteIndex: 15,
+    title: 'that easy little smile',
+    date: '2026-03-10',
+    note: 'A smile this natural deserved a permanent spot in the memory lane.',
+    alt: 'Mirror photo smiling while holding a compact camera.',
+  },
+  {
+    id: 'march10-0460',
+    type: 'image',
+    spriteIndex: 16,
+    title: 'straight to the camera',
+    date: '2026-03-10',
+    note: 'Simple, composed, and somehow still one of the sweetest frames.',
+    alt: 'Mirror photo facing the camera directly with a composed expression.',
+  },
+  {
+    id: 'march10-0461',
+    type: 'image',
+    spriteIndex: 17,
+    title: 'smile in the middle',
+    date: '2026-03-10',
+    note: 'One of those in-between smiles that feels more real than a perfect pose ♡',
+    alt: 'Mirror photo with a cheerful smile in the middle of the photo session.',
+  },
+  {
+    id: 'march10-0465',
+    type: 'image',
+    spriteIndex: 18,
+    title: 'soft and unbothered',
+    date: '2026-03-10',
+    note: 'A quiet pose that looks like it knew it was already cute.',
+    alt: 'Mirror photo with a soft relaxed expression and arms resting on the counter.',
+  },
+  {
+    id: 'march10-0468',
+    type: 'image',
+    spriteIndex: 19,
+    title: 'photographer mode on',
+    date: '2026-03-10',
+    note: 'The camera came a little closer and the mirror session officially became a whole event.',
+    alt: 'Mirror photo holding the compact camera closer to the face.',
   },
 ];
-
-const seedComments = {
-  'seed-1': [
-    {
-      id: 'comment-1',
-      author: 'Love',
-      body: 'keep this one forever please ♡',
-      createdAt: '2026-08-13T10:30:00.000Z',
-    },
-  ],
-  'seed-2': [
-    {
-      id: 'comment-2',
-      author: 'You',
-      body: 'This is exactly why I wanted our own little archive.',
-      createdAt: '2026-08-14T08:15:00.000Z',
-    },
-  ],
-};
 
 function readStoredComments() {
   try {
     const stored = localStorage.getItem(COMMENT_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : seedComments;
+    return stored ? JSON.parse(stored) : {};
   } catch {
-    return seedComments;
+    return {};
   }
 }
 
@@ -94,9 +227,48 @@ function commentTime(value) {
   }).format(new Date(value));
 }
 
+function SpritePhoto({ index, label, className = '' }) {
+  const column = index % 5;
+  const row = Math.floor(index / 5);
+  const positionX = column * 25;
+  const positionY = row * (100 / 3);
+
+  return (
+    <div
+      className={`sprite-photo ${className}`}
+      role="img"
+      aria-label={label}
+      style={{
+        backgroundImage: `url(${march10Sprite})`,
+        backgroundPosition: `${positionX}% ${positionY}%`,
+      }}
+    />
+  );
+}
+
+function MemoryVisual({ memory, mode = 'card' }) {
+  if (memory.type === 'video') {
+    return (
+      <video
+        src={memory.src}
+        controls={mode === 'dialog'}
+        muted={mode !== 'dialog'}
+        preload="metadata"
+        playsInline
+      />
+    );
+  }
+
+  if (Number.isInteger(memory.spriteIndex)) {
+    return <SpritePhoto index={memory.spriteIndex} label={memory.alt || memory.title} className={`sprite-${mode}`} />;
+  }
+
+  return <img src={memory.src} alt={memory.alt || memory.title} />;
+}
+
 function App() {
   const [activeSection, setActiveSection] = useState('memories');
-  const [memories, setMemories] = useState(seedMemories);
+  const [memories, setMemories] = useState(march10Memories);
   const [comments, setComments] = useState(readStoredComments);
   const [mediaFilter, setMediaFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState('newest');
@@ -284,10 +456,10 @@ function App() {
           </div>
 
           <div className="hero-visual" aria-label="Featured memories">
-            <div className="hero-paper-note">sorted by when it happened,<br />not when it was uploaded ♡</div>
-            {seedMemories.map((memory, index) => (
+            <div className="hero-paper-note">March 10, 2026<br />mirror-photo chapter ♡</div>
+            {march10Memories.slice(0, 3).map((memory, index) => (
               <button className={`hero-polaroid hero-p${index + 1}`} key={memory.id} type="button" onClick={() => openMemory(memory)}>
-                <img src={memory.src} alt={memory.alt} />
+                <MemoryVisual memory={memory} mode="hero" />
                 <span className="polaroid-date">{displayDate(memory.date, { month: 'short', day: 'numeric' })}</span>
                 <span className="polaroid-title">{memory.title}</span>
               </button>
@@ -302,7 +474,7 @@ function App() {
             <div className="section-head">
               <span className="section-index">01 / our archive</span>
               <h2>Everything worth keeping.</h2>
-              <p>Upload one memory or a whole batch. Photos and videos live in the same archive and can be sorted by their memory date.</p>
+              <p>Every photo gets its own little caption, and the comment space stays open for whatever the two of you want to say.</p>
             </div>
             <button className="btn primary" type="button" onClick={() => setUploadOpen(true)}>＋ Upload photos & videos</button>
           </div>
@@ -333,14 +505,8 @@ function App() {
               return (
                 <article className="memory-card" key={memory.id} style={{ '--tilt': `${[-1.2, 0.7, -0.4, 1.1][index % 4]}deg` }}>
                   <button className="memory-media" type="button" onClick={() => openMemory(memory)} aria-label={`Open ${memory.title}`}>
-                    {memory.type === 'video' ? (
-                      <>
-                        <video src={memory.src} muted preload="metadata" playsInline />
-                        <span className="video-badge">▶ video</span>
-                      </>
-                    ) : (
-                      <img src={memory.src} alt={memory.alt || memory.title} />
-                    )}
+                    <MemoryVisual memory={memory} mode="card" />
+                    {memory.type === 'video' && <span className="video-badge">▶ video</span>}
                   </button>
                   <div className="memory-meta">
                     <div>
@@ -372,7 +538,7 @@ function App() {
               <h2>Our timeline.</h2>
               <p>The same archive, grouped by month so it reads more like a story than a folder.</p>
             </div>
-            <div className="timeline-note">new uploads can use each file's date automatically</div>
+            <div className="timeline-note">March 10, 2026 now has its own photo chapter</div>
           </div>
 
           <div className="timeline-list">
@@ -383,7 +549,7 @@ function App() {
                   {items.map((memory) => (
                     <button className="timeline-memory" key={memory.id} type="button" onClick={() => openMemory(memory)}>
                       <div className="timeline-thumb">
-                        {memory.type === 'video' ? <video src={memory.src} muted preload="metadata" playsInline /> : <img src={memory.src} alt="" />}
+                        <MemoryVisual memory={memory} mode="thumb" />
                         {memory.type === 'video' && <span>▶</span>}
                       </div>
                       <div>
@@ -464,11 +630,7 @@ function App() {
             <button className="dialog-close" type="button" onClick={() => setSelectedMemory(null)} aria-label="Close memory">×</button>
 
             <div className="dialog-media">
-              {selectedMemory.type === 'video' ? (
-                <video src={selectedMemory.src} controls playsInline preload="metadata" />
-              ) : (
-                <img src={selectedMemory.src} alt={selectedMemory.alt || selectedMemory.title} />
-              )}
+              <MemoryVisual memory={selectedMemory} mode="dialog" />
             </div>
 
             <aside className="dialog-panel">
@@ -486,7 +648,7 @@ function App() {
                       <div><strong>{comment.author}</strong><time>{commentTime(comment.createdAt)}</time></div>
                       <p>{comment.body}</p>
                     </article>
-                  )) : <p className="no-comments">No comments yet. Leave the first little note.</p>}
+                  )) : <p className="no-comments">No comments yet — this space is yours. Write whatever this photo makes you want to say ♡</p>}
                 </div>
 
                 <form className="comment-form" onSubmit={addComment}>
@@ -495,7 +657,7 @@ function App() {
                       <button className={commentAuthor === member ? 'active' : ''} type="button" key={member} onClick={() => setCommentAuthor(member)}>{member}</button>
                     ))}
                   </div>
-                  <textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} maxLength="500" placeholder="Say something about this memory..." />
+                  <textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} maxLength="500" placeholder="What do you want to say about this photo?" />
                   <button className="btn primary" type="submit" disabled={!commentDraft.trim()}>Comment ♡</button>
                 </form>
               </div>
