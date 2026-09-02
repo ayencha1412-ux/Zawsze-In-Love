@@ -1,0 +1,1 @@
+Image rendering fix in progress: replacing the malformed sprite with a valid WebP generated from the 20 uploaded March 10, 2026 photos.
