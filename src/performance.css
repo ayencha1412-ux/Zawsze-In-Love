@@ -1,0 +1,21 @@
+/* Rendering safeguards for long archive pages. Keep this file visual-neutral. */
+.notes .note,
+.thread .timeline-card {
+  content-visibility: auto;
+}
+
+.notes .note { contain-intrinsic-size: 700px 220px; }
+.thread .timeline-card { contain-intrinsic-size: 700px 260px; }
+
+.gallery-status {
+  margin: 18px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: .82rem;
+}
+
+.gallery-load-more {
+  display: flex;
+  justify-content: center;
+  padding-top: 24px;
+}
