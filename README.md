@@ -1,68 +1,123 @@
-# Full Stack Zawsze Web — Frontend
+# Zawsze in Love
 
-A cleaned-up React + Vite version of the original self-contained apology website. The original visual identity, message flow, interactions, and all three photos are preserved, but the code is now split into reusable files so it is easier to develop in VS Code and later connect to a backend.
+A private two-person memory website built with React + Vite and designed to grow into a Laravel-backed full-stack app.
 
-## What changed
+The project keeps the soft pink, red, beige, paper, and polaroid visual language while moving away from a one-page apology site into a shared archive for two people.
 
-- Preserved the beige / red / pink paper aesthetic, polaroid photos, wax-seal envelope, reveal interactions, progress hearts, and ambient music.
-- Extracted the original Base64 photos into normal WebP assets for faster editing and cleaner source control.
-- Converted the frontend to React components.
-- Improved desktop/mobile spacing, card hierarchy, section backgrounds, progress navigation, focus states, and reduced-motion accessibility.
-- Added an API helper and `.env.example` so the frontend is ready for a future backend.
+## Current frontend
 
-## Run in VS Code
+The React frontend now includes:
 
-1. Extract this project folder.
-2. Open the folder in VS Code.
-3. Open a terminal in VS Code.
-4. Run:
+- a private two-person visual identity;
+- a shared memory gallery using the existing photos;
+- photo and video support;
+- bulk media selection for mass uploads;
+- automatic use of each selected file's date when available;
+- newest-first and oldest-first sorting;
+- All / Photos / Videos filters;
+- a date-grouped timeline;
+- a responsive memory detail view;
+- comments attached to each individual memory;
+- a You / Love identity toggle for prototype comments;
+- mobile, tablet, and desktop layouts;
+- a centralized API client in `src/lib/api.js` prepared for Laravel.
+
+Until the backend is connected, newly selected media is intentionally session-only and prototype comments use `localStorage`. This avoids pretending that the two devices are already synchronized.
+
+## Run locally in VS Code
 
 ```bash
 npm install
 npm run dev
 ```
 
-Vite will show a local URL, usually `http://localhost:5173`.
+Vite will print the local address, usually:
 
-## Build for production
+```text
+http://localhost:5173/
+```
+
+If another Vite process is already running, it may use `5174` or another nearby port.
+
+## Build the frontend
 
 ```bash
 npm run build
 ```
 
-The production files will be created in `dist/`.
+## GitHub workflow
 
-## GitHub setup
+This repository is already connected to:
 
-Create an empty GitHub repository, then run inside this folder:
-
-```bash
-git init
-git add .
-git commit -m "Initial Zawsze frontend"
-git branch -M main
-git remote add origin https://github.com/YOUR-USERNAME/YOUR-REPOSITORY.git
-git push -u origin main
+```text
+ayencha1412-ux/Zawsze-In-Love
 ```
 
-If the repository already exists locally, do not run `git init` again; just add/commit/push the changed files.
+To receive changes made on GitHub in the local VS Code copy:
 
-## Future backend connection
+```bash
+git pull
+```
 
-Copy `.env.example` to `.env` and set the backend API URL:
+To send local changes back to GitHub:
+
+```bash
+git add .
+git commit -m "Describe the change"
+git push
+```
+
+## Full-stack direction
+
+Zawsze will follow the useful architectural pattern from IntelliBridge without sharing IntelliBridge code or business logic:
+
+```text
+React + Vite frontend
+        ↓
+centralized API client
+        ↓
+Laravel REST API
+        ↓
+Sanctum authentication
+        ↓
+MySQL/PostgreSQL database
+        ↓
+private photo/video storage
+```
+
+There will be no public registration. The production app is intended for exactly two authorized accounts sharing one private space.
+
+The backend will support:
+
+- private login for the two users;
+- database-backed memories;
+- private photo/video storage;
+- bulk uploads;
+- per-file memory dates;
+- date sorting and timeline grouping;
+- per-memory comments;
+- edit/delete controls;
+- authorized media streaming;
+- deployment configuration, backups, CORS, and HTTPS.
+
+The detailed database schema, endpoint contract, privacy model, and recommended Laravel implementation order are documented in:
+
+```text
+docs/FULL_STACK_BLUEPRINT.md
+```
+
+## API environment
+
+The future Laravel API URL is configured with:
 
 ```env
 VITE_API_URL=http://localhost:8000/api
 ```
 
-Use `src/lib/api.js` for requests. This keeps backend calls in one place instead of scattering `fetch()` throughout components.
-
-A future full-stack structure can be:
+The frontend request layer is centralized in:
 
 ```text
-full-stack-zawsze-web/
-├─ frontend/   # this Vite/React app
-└─ backend/    # Laravel, Express, Django, etc.
+src/lib/api.js
 ```
 
-Possible backend features later: private access/login, view tracking, reply/message form, admin editing of story content, photo management, deployment configuration, and database-backed content.
+That file already defines the planned authentication, bulk-memory, and comment API calls so the React components will not need backend URLs scattered throughout the interface.
