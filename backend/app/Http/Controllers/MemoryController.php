@@ -78,6 +78,10 @@ class MemoryController extends Controller
 
                     $dateValue = $fileDates[$index] ?? ($validated['fallback_date'] ?? null);
                     $takenAt = $dateValue ? Carbon::parse($dateValue) : now();
+                    $sourceKey = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+                    $preset = config('memory_captions.'.$sourceKey, []);
+                    $caption = $validated['caption'] ?? ($preset['title'] ?? null);
+                    $description = $preset['description'] ?? null;
 
                     $memory = Memory::create([
                         'space_id' => $space->id,
@@ -88,7 +92,8 @@ class MemoryController extends Controller
                         'original_name' => $file->getClientOriginalName(),
                         'mime_type' => $mime,
                         'size_bytes' => $file->getSize(),
-                        'caption' => $validated['caption'] ?? null,
+                        'caption' => $caption,
+                        'description' => $description,
                         'taken_at' => $takenAt,
                     ]);
 
@@ -115,6 +120,7 @@ class MemoryController extends Controller
 
         $validated = $request->validate([
             'caption' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'description' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'taken_at' => ['sometimes', 'nullable', 'date'],
         ]);
 
@@ -153,6 +159,7 @@ class MemoryController extends Controller
             'type' => $memory->media_type,
             'title' => $memory->caption ?: pathinfo($memory->original_name, PATHINFO_FILENAME),
             'caption' => $memory->caption,
+            'description' => $memory->description,
             'date' => optional($memory->taken_at)->toDateString(),
             'taken_at' => optional($memory->taken_at)->toIso8601String(),
             'original_name' => $memory->original_name,
