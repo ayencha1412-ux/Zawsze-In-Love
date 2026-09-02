@@ -1,0 +1,34 @@
+  const caption=req.body.caption===undefined?m.caption:cleanText(req.body.caption,180); const memoryDate=req.body.memoryDate===undefined?m.memory_date:(req.body.memoryDate===''?null:safeDate(req.body.memoryDate)); const location=req.body.location===undefined?m.location:nullableText(req.body.location,120); const albumId=req.body.albumId===undefined?m.album_id:(req.body.albumId?Number(req.body.albumId):null); const favorite=req.body.isFavorite===undefined?m.is_favorite:(parseBool(req.body.isFavorite)?1:0); const locked=req.body.isLocked===undefined?m.is_locked:(parseBool(req.body.isLocked)?1:0);
+  if(albumId && !db.prepare('SELECT 1 FROM albums WHERE id=? AND couple_id=? AND deleted_at IS NULL').get(albumId,req.auth.couple_id)) return res.status(400).json({error:'Album not found.'});
+  db.prepare("UPDATE memories SET caption=?,memory_date=?,location=?,album_id=?,is_favorite=?,is_locked=?,updated_at=datetime('now') WHERE id=?").run(caption,memoryDate,location,albumId,favorite,locked,m.id); res.json({ok:true});
+});
+app.delete('/api/memories/:id', requireAuth, (req,res)=>{ const r=db.prepare("UPDATE memories SET deleted_at=datetime('now'),updated_at=datetime('now') WHERE id=? AND couple_id=? AND deleted_at IS NULL").run(req.params.id,req.auth.couple_id); if(!r.changes)return res.status(404).json({error:'Memory not found.'}); res.json({ok:true}); });
+
+app.get('/api/notes', requireAuth, (req,res)=>{
+  const params=[req.auth.couple_id,req.auth.id]; let lockFilter=isUnlocked(req)?'':' AND n.is_locked=0';
+  const rows=db.prepare(`SELECT n.*,u.name AS author_name,(SELECT COUNT(*) FROM note_reactions r WHERE r.note_id=n.id) AS heart_count,EXISTS(SELECT 1 FROM note_reactions r WHERE r.note_id=n.id AND r.user_id=?) AS hearted_by_me FROM notes n JOIN users u ON u.id=n.author_id WHERE n.couple_id=? AND n.deleted_at IS NULL ${lockFilter} ORDER BY n.is_pinned DESC,n.created_at DESC`).all(req.auth.id,req.auth.couple_id);
+  const now=Date.now();
+  res.json(rows.map(n=>{ const sealed=n.open_at && new Date(n.open_at).getTime()>now && n.author_id!==req.auth.id; return {id:n.id,authorId:n.author_id,authorName:n.author_name,body:sealed?null:n.body,sealed,openAt:n.open_at,isPinned:Boolean(n.is_pinned),isFavorite:Boolean(n.is_favorite),isLocked:Boolean(n.is_locked),heartCount:n.heart_count,heartedByMe:Boolean(n.hearted_by_me),createdAt:n.created_at,updatedAt:n.updated_at}; }));
+});
+app.post('/api/notes', requireAuth, (req,res)=>{
+  const body=cleanText(req.body.body,3000); if(!body)return res.status(400).json({error:'Write something first.'});
+  const openAt=req.body.openAt?safeDate(req.body.openAt):null; const pinned=parseBool(req.body.isPinned),favorite=parseBool(req.body.isFavorite),locked=parseBool(req.body.isLocked);
+  const r=db.prepare('INSERT INTO notes(couple_id,author_id,body,open_at,is_pinned,is_favorite,is_locked) VALUES(?,?,?,?,?,?,?)').run(req.auth.couple_id,req.auth.id,body,openAt,pinned?1:0,favorite?1:0,locked?1:0);
+  const message=openAt?`${req.auth.name} left you a letter to open later.`:`${req.auth.name} left a new love note.`; notifyPartner(req.auth.couple_id,req.auth.id,'note_added','note',r.lastInsertRowid,message); res.status(201).json({id:Number(r.lastInsertRowid)});
+});
+app.patch('/api/notes/:id', requireAuth, (req,res)=>{
+  const n=db.prepare('SELECT * FROM notes WHERE id=? AND couple_id=? AND deleted_at IS NULL').get(req.params.id,req.auth.couple_id); if(!n)return res.status(404).json({error:'Note not found.'});
+  if(n.author_id!==req.auth.id && (req.body.body!==undefined || req.body.openAt!==undefined || req.body.isLocked!==undefined)) return res.status(403).json({error:'You can only edit the text, seal date, or lock state of your own note.'});
+  const body=req.body.body===undefined?n.body:cleanText(req.body.body,3000); if(!body)return res.status(400).json({error:'A note cannot be empty.'}); const openAt=req.body.openAt===undefined?n.open_at:(req.body.openAt?safeDate(req.body.openAt):null); const pinned=req.body.isPinned===undefined?n.is_pinned:(parseBool(req.body.isPinned)?1:0); const favorite=req.body.isFavorite===undefined?n.is_favorite:(parseBool(req.body.isFavorite)?1:0); const locked=req.body.isLocked===undefined?n.is_locked:(parseBool(req.body.isLocked)?1:0);
+  db.prepare("UPDATE notes SET body=?,open_at=?,is_pinned=?,is_favorite=?,is_locked=?,updated_at=datetime('now') WHERE id=?").run(body,openAt,pinned,favorite,locked,n.id); res.json({ok:true});
+});
+app.delete('/api/notes/:id', requireAuth, (req,res)=>{ const n=db.prepare('SELECT * FROM notes WHERE id=? AND couple_id=? AND deleted_at IS NULL').get(req.params.id,req.auth.couple_id); if(!n)return res.status(404).json({error:'Note not found.'}); if(n.author_id!==req.auth.id)return res.status(403).json({error:'You can only delete your own note.'}); db.prepare("UPDATE notes SET deleted_at=datetime('now'),updated_at=datetime('now') WHERE id=?").run(n.id); res.json({ok:true}); });
+app.post('/api/notes/:id/heart', requireAuth, (req,res)=>{
+  const n=db.prepare('SELECT id FROM notes WHERE id=? AND couple_id=? AND deleted_at IS NULL').get(req.params.id,req.auth.couple_id); if(!n)return res.status(404).json({error:'Note not found.'}); const exists=db.prepare('SELECT 1 FROM note_reactions WHERE note_id=? AND user_id=?').get(n.id,req.auth.id); if(exists)db.prepare('DELETE FROM note_reactions WHERE note_id=? AND user_id=?').run(n.id,req.auth.id); else db.prepare('INSERT INTO note_reactions(note_id,user_id) VALUES(?,?)').run(n.id,req.auth.id); const count=db.prepare('SELECT COUNT(*) AS n FROM note_reactions WHERE note_id=?').get(n.id).n; res.json({hearted:!exists,count});
+});
+
+app.get('/api/timeline', requireAuth, (req,res)=>{
+  const params=[req.auth.couple_id]; let where='t.couple_id=? AND t.deleted_at IS NULL'; if(req.query.q){where+=' AND (t.title LIKE ? OR t.description LIKE ?)';const q=`%${cleanText(req.query.q,120)}%`;params.push(q,q);} if(req.query.favorite==='1')where+=' AND t.is_favorite=1'; if(req.query.type){where+=' AND t.event_type=?';params.push(cleanText(req.query.type,40));} if(!isUnlocked(req))where+=' AND t.is_locked=0';
+  const rows=db.prepare(`SELECT t.*,u.name AS author_name FROM timeline_events t JOIN users u ON u.id=t.author_id WHERE ${where} ORDER BY COALESCE(t.event_date,t.created_at) ASC,t.id ASC`).all(...params); res.json(hydrateFiles(rows,'event_id').map(t=>({id:t.id,title:t.title,eventDate:t.event_date,description:t.description,eventType:t.event_type,isFavorite:Boolean(t.is_favorite),isLocked:Boolean(t.is_locked),authorId:t.author_id,authorName:t.author_name,createdAt:t.created_at,updatedAt:t.updated_at,files:t.files})));
+});
+app.post('/api/timeline', requireAuth, upload.array('photos',8), (req,res)=>{

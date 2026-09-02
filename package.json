@@ -1,18 +1,38 @@
 {
   "name": "zawsze-in-love",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:frontend": "vite",
+    "dev:backend": "node --watch server/server.cjs",
     "build": "vite build",
-    "preview": "vite preview"
+    "start": "node server/server.cjs",
+    "preview": "vite preview",
+    "check:server": "node --check server/server.cjs && node --check server/db.cjs"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^5.4.11",
+    "archiver": "^7.0.1",
+    "bcryptjs": "^3.0.2",
+    "better-sqlite3": "^11.10.0",
+    "compression": "^1.8.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.1.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "vite": "^5.4.11"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
 }

@@ -1,0 +1,27 @@
+app.get('/api/notifications', requireAuth, (req,res)=>{ const rows=db.prepare(`SELECT n.*,u.name AS actor_name FROM notifications n LEFT JOIN users u ON u.id=n.actor_id WHERE n.target_user_id=? ORDER BY n.created_at DESC LIMIT 100`).all(req.auth.id); res.json(rows.map(n=>({id:n.id,type:n.type,entityType:n.entity_type,entityId:n.entity_id,message:n.message,actorName:n.actor_name,readAt:n.read_at,createdAt:n.created_at}))); });
+app.post('/api/notifications/read', requireAuth, (req,res)=>{ db.prepare("UPDATE notifications SET read_at=datetime('now') WHERE target_user_id=? AND read_at IS NULL").run(req.auth.id); res.json({ok:true}); });
+
+app.get('/api/media/:filename', requireAuth, (req,res)=>{
+  const filename=path.basename(req.params.filename);
+  const record=db.prepare(`SELECT mf.file_path,m.couple_id,m.is_locked,m.deleted_at FROM memory_files mf JOIN memories m ON m.id=mf.memory_id WHERE mf.file_path LIKE ? UNION ALL SELECT tf.file_path,t.couple_id,t.is_locked,t.deleted_at FROM timeline_files tf JOIN timeline_events t ON t.id=tf.event_id WHERE tf.file_path LIKE ? LIMIT 1`).get(`%${filename}`,`%${filename}`);
+  if(!record||record.deleted_at||record.couple_id!==req.auth.couple_id)return res.status(404).end(); if(record.is_locked&&!isUnlocked(req))return res.status(423).json({error:'Unlock private memories first.'}); const real=path.resolve(record.file_path); const allowed=path.resolve(uploadRoot,String(req.auth.couple_id)); if(!real.startsWith(allowed)||!fs.existsSync(real))return res.status(404).end(); res.setHeader('Cache-Control','private, max-age=3600'); res.sendFile(real);
+});
+
+app.get('/api/export', requireAuth, (req,res)=>{
+  const coupleId=req.auth.couple_id; const members=db.prepare(`SELECT u.id,u.name,u.email,cm.role,cm.joined_at FROM couple_members cm JOIN users u ON u.id=cm.user_id WHERE cm.couple_id=?`).all(coupleId); const couple=db.prepare('SELECT id,name,relationship_start,created_at,updated_at FROM couples WHERE id=?').get(coupleId); const albums=db.prepare('SELECT id,name,description,created_by,created_at,updated_at FROM albums WHERE couple_id=? AND deleted_at IS NULL').all(coupleId); const memories=hydrateFiles(db.prepare('SELECT id,uploader_id,album_id,caption,memory_date,location,is_favorite,is_locked,created_at,updated_at FROM memories WHERE couple_id=? AND deleted_at IS NULL').all(coupleId),'memory_id'); const notes=db.prepare('SELECT id,author_id,body,open_at,is_pinned,is_favorite,is_locked,created_at,updated_at FROM notes WHERE couple_id=? AND deleted_at IS NULL').all(coupleId); const timeline=hydrateFiles(db.prepare('SELECT id,author_id,title,event_date,description,event_type,is_favorite,is_locked,created_at,updated_at FROM timeline_events WHERE couple_id=? AND deleted_at IS NULL').all(coupleId),'event_id'); const manifest={exportedAt:nowIso(),couple,members,albums,memories,notes,timeline};
+  res.attachment(`zawsze-backup-${new Date().toISOString().slice(0,10)}.zip`); const archive=archiver('zip',{zlib:{level:9}}); archive.on('error',err=>{console.error(err); if(!res.headersSent)res.status(500).end();}); archive.pipe(res); archive.append(JSON.stringify(manifest,null,2),{name:'zawsze-data.json'}); const dir=path.join(uploadRoot,String(coupleId)); if(fs.existsSync(dir))archive.directory(dir,'uploads'); archive.finalize();
+});
+
+app.use('/api', (req,res)=>res.status(404).json({error:'API route not found.'}));
+const distDir = path.join(__dirname, '..', 'dist');
+if (fs.existsSync(distDir)) {
+  app.use(express.static(distDir, { maxAge: NODE_ENV === 'production' ? '1h' : 0 }));
+  app.get(/.*/, (req, res) => res.sendFile(path.join(distDir, 'index.html')));
+}
+
+app.use((err,req,res,next)=>{
+  if(err instanceof multer.MulterError) return res.status(400).json({error:err.code==='LIMIT_FILE_SIZE'?`Each image must be under ${MAX_UPLOAD_MB} MB.`:err.message});
+  if(err) return res.status(400).json({error:err.message||'Request failed.'}); next();
+});
+
+app.listen(PORT,()=>console.log(`Zawsze In Love running on http://localhost:${PORT}`));

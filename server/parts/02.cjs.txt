@@ -1,0 +1,112 @@
+    const email = cleanText(req.body.email, 160).toLowerCase();
+    const password = String(req.body.password || '');
+    const spaceName = cleanText(req.body.spaceName, 80) || 'Zawsze In Love';
+    const relationshipStart = safeDate(req.body.relationshipStart);
+    if (name.length < 2 || !emailValid(email) || password.length < 8) return res.status(400).json({ error: 'Use a valid name, email, and a password of at least 8 characters.' });
+    const hash = await bcrypt.hash(password, 12);
+    const tx = db.transaction(() => {
+      const user = db.prepare('INSERT INTO users(name,email,password_hash) VALUES(?,?,?)').run(name, email, hash);
+      let invite = randomInvite();
+      while (db.prepare('SELECT 1 FROM couples WHERE invite_code=?').get(invite)) invite = randomInvite();
+      const couple = db.prepare('INSERT INTO couples(name,relationship_start,invite_code,created_by) VALUES(?,?,?,?)').run(spaceName, relationshipStart, invite, user.lastInsertRowid);
+      db.prepare("INSERT INTO couple_members(couple_id,user_id,role) VALUES(?,?,'owner')").run(couple.lastInsertRowid, user.lastInsertRowid);
+      db.prepare('INSERT INTO albums(couple_id,name,description,created_by) VALUES(?,?,?,?)').run(couple.lastInsertRowid, 'Favorites', 'The memories you never want to lose.', user.lastInsertRowid);
+      return { userId: Number(user.lastInsertRowid), invite };
+    });
+    const result = tx();
+    setSessionCookie(res, result.userId);
+    res.status(201).json({ ok: true, inviteCode: result.invite });
+  } catch (e) {
+    if (String(e.message).includes('UNIQUE constraint failed: users.email')) return res.status(409).json({ error: 'That email is already registered.' });
+    console.error(e); res.status(500).json({ error: 'Could not create your Zawsze space.' });
+  }
+});
+
+app.post('/api/auth/join', async (req, res) => {
+  try {
+    const name = cleanText(req.body.name, 60);
+    const email = cleanText(req.body.email, 160).toLowerCase();
+    const password = String(req.body.password || '');
+    const inviteCode = cleanText(req.body.inviteCode, 40).toUpperCase();
+    if (name.length < 2 || !emailValid(email) || password.length < 8 || !inviteCode) return res.status(400).json({ error: 'Enter a valid name, email, password, and invite code.' });
+    const couple = db.prepare('SELECT * FROM couples WHERE invite_code=?').get(inviteCode);
+    if (!couple) return res.status(404).json({ error: 'That invite code was not found.' });
+    const count = db.prepare('SELECT COUNT(*) AS n FROM couple_members WHERE couple_id=?').get(couple.id).n;
+    if (count >= 2) return res.status(409).json({ error: 'This Zawsze space already has two partners.' });
+    const hash = await bcrypt.hash(password, 12);
+    const tx = db.transaction(() => {
+      const user = db.prepare('INSERT INTO users(name,email,password_hash) VALUES(?,?,?)').run(name, email, hash);
+      db.prepare("INSERT INTO couple_members(couple_id,user_id,role) VALUES(?,?,'partner')").run(couple.id, user.lastInsertRowid);
+      return Number(user.lastInsertRowid);
+    });
+    const userId = tx();
+    notifyPartner(couple.id, userId, 'partner_joined', 'couple', couple.id, `${name} joined your Zawsze space.`);
+    setSessionCookie(res, userId);
+    res.status(201).json({ ok: true });
+  } catch (e) {
+    if (String(e.message).includes('UNIQUE constraint failed: users.email')) return res.status(409).json({ error: 'That email is already registered.' });
+    console.error(e); res.status(500).json({ error: 'Could not join the Zawsze space.' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const email = cleanText(req.body.email, 160).toLowerCase();
+  const password = String(req.body.password || '');
+  const user = db.prepare('SELECT * FROM users WHERE email=?').get(email);
+  if (!user || !(await bcrypt.compare(password, user.password_hash))) return res.status(401).json({ error: 'Incorrect email or password.' });
+  if (!sessionForUser(user.id)) return res.status(403).json({ error: 'This account is not connected to a Zawsze space.' });
+  setSessionCookie(res, user.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/auth/logout', (req, res) => { clearAuthCookies(res); res.json({ ok: true }); });
+
+app.get('/api/me', requireAuth, (req, res) => {
+  const members = db.prepare(`SELECT u.id,u.name,u.email,u.avatar_url,cm.role,cm.joined_at FROM couple_members cm JOIN users u ON u.id=cm.user_id WHERE cm.couple_id=? ORDER BY cm.joined_at`).all(req.auth.couple_id);
+  res.json({
+    user: publicUser(req.auth),
+    role: req.auth.role,
+    couple: {
+      id: req.auth.couple_id,
+      name: req.auth.couple_name,
+      relationshipStart: req.auth.relationship_start,
+      inviteCode: req.auth.invite_code,
+      hasPin: Boolean(req.auth.pin_hash),
+      unlocked: isUnlocked(req),
+      members: members.map(m => ({ id:m.id,name:m.name,email:m.email,avatarUrl:m.avatar_url||null,role:m.role,joinedAt:m.joined_at }))
+    }
+  });
+});
+
+app.patch('/api/account', requireAuth, async (req, res) => {
+  const name = cleanText(req.body.name, 60);
+  const currentPassword = String(req.body.currentPassword || '');
+  const newPassword = String(req.body.newPassword || '');
+  if (name) db.prepare('UPDATE users SET name=? WHERE id=?').run(name, req.auth.id);
+  if (newPassword) {
+    if (newPassword.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters.' });
+    const u = db.prepare('SELECT password_hash FROM users WHERE id=?').get(req.auth.id);
+    if (!currentPassword || !(await bcrypt.compare(currentPassword, u.password_hash))) return res.status(403).json({ error: 'Current password is incorrect.' });
+    db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(await bcrypt.hash(newPassword, 12), req.auth.id);
+  }
+  res.json({ ok: true });
+});
+
+app.patch('/api/couple', requireAuth, (req, res) => {
+  const name = cleanText(req.body.name, 80);
+  const relationshipStart = req.body.relationshipStart === '' ? null : safeDate(req.body.relationshipStart);
+  if (!name) return res.status(400).json({ error: 'The space needs a name.' });
+  db.prepare("UPDATE couples SET name=?,relationship_start=?,updated_at=datetime('now') WHERE id=?").run(name, relationshipStart, req.auth.couple_id);
+  res.json({ ok: true });
+});
+
+app.post('/api/couple/invite/rotate', requireAuth, requireOwner, (req, res) => {
+  let invite = randomInvite();
+  while (db.prepare('SELECT 1 FROM couples WHERE invite_code=?').get(invite)) invite = randomInvite();
+  db.prepare("UPDATE couples SET invite_code=?,updated_at=datetime('now') WHERE id=?").run(invite, req.auth.couple_id);
+  res.json({ inviteCode: invite });
+});
+
+app.post('/api/couple/pin', requireAuth, async (req, res) => {
+  const pin = cleanText(req.body.pin, 32);
+  if (!pin) {

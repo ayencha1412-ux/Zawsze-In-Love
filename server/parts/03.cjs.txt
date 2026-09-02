@@ -1,0 +1,71 @@
+    db.prepare("UPDATE couples SET pin_hash=NULL,updated_at=datetime('now') WHERE id=?").run(req.auth.couple_id);
+    res.clearCookie('zawsze_unlock', { httpOnly:true,sameSite:'strict',secure:COOKIE_SECURE });
+    return res.json({ ok: true, hasPin: false });
+  }
+  if (!/^\d{4,8}$/.test(pin)) return res.status(400).json({ error: 'Use a 4–8 digit PIN.' });
+  const hash = await bcrypt.hash(pin, 12);
+  db.prepare("UPDATE couples SET pin_hash=?,updated_at=datetime('now') WHERE id=?").run(hash, req.auth.couple_id);
+  res.json({ ok: true, hasPin: true });
+});
+
+app.post('/api/couple/unlock', requireAuth, async (req, res) => {
+  if (!req.auth.pin_hash) return res.json({ ok: true });
+  const pin = cleanText(req.body.pin, 32);
+  if (!(await bcrypt.compare(pin, req.auth.pin_hash))) return res.status(403).json({ error: 'Incorrect PIN.' });
+  const token = jwt.sign({ scope: 'unlock', coupleId: req.auth.couple_id }, JWT_SECRET, { expiresIn: '15m' });
+  res.cookie('zawsze_unlock', token, { httpOnly:true,sameSite:'strict',secure:COOKIE_SECURE,maxAge:15*60*1000 });
+  res.json({ ok: true, expiresInMinutes: 15 });
+});
+app.post('/api/couple/lock', requireAuth, (req,res)=>{ res.clearCookie('zawsze_unlock',{httpOnly:true,sameSite:'strict',secure:COOKIE_SECURE}); res.json({ok:true}); });
+
+app.get('/api/albums', requireAuth, (req, res) => {
+  const rows = db.prepare(`SELECT a.*,u.name AS creator_name,(SELECT COUNT(*) FROM memories m WHERE m.album_id=a.id AND m.deleted_at IS NULL) AS memory_count FROM albums a JOIN users u ON u.id=a.created_by WHERE a.couple_id=? AND a.deleted_at IS NULL ORDER BY a.created_at DESC`).all(req.auth.couple_id);
+  res.json(rows.map(a => ({ id:a.id,name:a.name,description:a.description,createdBy:a.created_by,creatorName:a.creator_name,memoryCount:a.memory_count,createdAt:a.created_at })));
+});
+app.post('/api/albums', requireAuth, (req, res) => {
+  const name = cleanText(req.body.name, 80); const description = nullableText(req.body.description, 240);
+  if (!name) return res.status(400).json({ error:'Album name is required.' });
+  const r = db.prepare('INSERT INTO albums(couple_id,name,description,created_by) VALUES(?,?,?,?)').run(req.auth.couple_id,name,description,req.auth.id);
+  notifyPartner(req.auth.couple_id,req.auth.id,'album_added','album',r.lastInsertRowid,`${req.auth.name} created the album “${name}”.`);
+  res.status(201).json({ id:Number(r.lastInsertRowid) });
+});
+app.patch('/api/albums/:id', requireAuth, (req,res)=>{
+  const album = db.prepare('SELECT * FROM albums WHERE id=? AND couple_id=? AND deleted_at IS NULL').get(req.params.id,req.auth.couple_id);
+  if(!album) return res.status(404).json({error:'Album not found.'});
+  const name=cleanText(req.body.name,80)||album.name; const description=req.body.description===undefined?album.description:nullableText(req.body.description,240);
+  db.prepare("UPDATE albums SET name=?,description=?,updated_at=datetime('now') WHERE id=?").run(name,description,album.id); res.json({ok:true});
+});
+app.delete('/api/albums/:id', requireAuth, (req,res)=>{
+  const album=db.prepare('SELECT * FROM albums WHERE id=? AND couple_id=? AND deleted_at IS NULL').get(req.params.id,req.auth.couple_id);
+  if(!album) return res.status(404).json({error:'Album not found.'});
+  const tx=db.transaction(()=>{ db.prepare('UPDATE memories SET album_id=NULL WHERE album_id=?').run(album.id); db.prepare("UPDATE albums SET deleted_at=datetime('now') WHERE id=?").run(album.id); }); tx(); res.json({ok:true});
+});
+
+app.get('/api/memories', requireAuth, (req, res) => {
+  const params=[req.auth.couple_id]; let where='m.couple_id=? AND m.deleted_at IS NULL';
+  if(req.query.q){ where+=' AND (m.caption LIKE ? OR m.location LIKE ?)'; const q=`%${cleanText(req.query.q,120)}%`; params.push(q,q); }
+  if(req.query.favorite==='1'){ where+=' AND m.is_favorite=1'; }
+  if(req.query.albumId){ where+=' AND m.album_id=?'; params.push(Number(req.query.albumId)); }
+  if(req.query.year){ where+=" AND strftime('%Y',m.memory_date)=?"; params.push(cleanText(req.query.year,4)); }
+  if(!isUnlocked(req)){ where+=' AND m.is_locked=0'; }
+  const rows=db.prepare(`SELECT m.id,m.caption,m.memory_date,m.location,m.is_favorite,m.is_locked,m.album_id,m.uploader_id,m.created_at,m.updated_at,u.name AS uploader_name,a.name AS album_name FROM memories m JOIN users u ON u.id=m.uploader_id LEFT JOIN albums a ON a.id=m.album_id WHERE ${where} ORDER BY COALESCE(m.memory_date,m.created_at) DESC,m.id DESC`).all(...params);
+  res.json(hydrateFiles(rows,'memory_id').map(m=>({id:m.id,caption:m.caption,memoryDate:m.memory_date,location:m.location,isFavorite:Boolean(m.is_favorite),isLocked:Boolean(m.is_locked),albumId:m.album_id,albumName:m.album_name,uploaderId:m.uploader_id,uploaderName:m.uploader_name,createdAt:m.created_at,updatedAt:m.updated_at,files:m.files})));
+});
+
+app.post('/api/memories', requireAuth, upload.array('photos',12), (req,res)=>{
+  try{
+    if(!req.files?.length) return res.status(400).json({error:'Choose at least one photo.'});
+    const caption=cleanText(req.body.caption,180); const memoryDate=safeDate(req.body.memoryDate); const location=nullableText(req.body.location,120); const albumId=req.body.albumId?Number(req.body.albumId):null; const locked=parseBool(req.body.isLocked); const favorite=parseBool(req.body.isFavorite);
+    if(albumId && !db.prepare('SELECT 1 FROM albums WHERE id=? AND couple_id=? AND deleted_at IS NULL').get(albumId,req.auth.couple_id)) return res.status(400).json({error:'Album not found.'});
+    const tx=db.transaction(()=>{
+      const r=db.prepare('INSERT INTO memories(couple_id,uploader_id,album_id,caption,memory_date,location,is_favorite,is_locked) VALUES(?,?,?,?,?,?,?,?)').run(req.auth.couple_id,req.auth.id,albumId,caption,memoryDate,location,favorite?1:0,locked?1:0);
+      const stmt=db.prepare('INSERT INTO memory_files(memory_id,file_path,original_name,mime_type,position) VALUES(?,?,?,?,?)');
+      req.files.forEach((f,i)=>stmt.run(r.lastInsertRowid,f.path,f.originalname,f.mimetype,i));
+      return Number(r.lastInsertRowid);
+    });
+    const id=tx(); notifyPartner(req.auth.couple_id,req.auth.id,'memory_added','memory',id,`${req.auth.name} added a new memory${caption?` — “${caption}”`:''}.`); res.status(201).json({id});
+  }catch(e){ console.error(e); res.status(500).json({error:'Could not save the memory.'}); }
+});
+
+app.patch('/api/memories/:id', requireAuth, (req,res)=>{
+  const m=db.prepare('SELECT * FROM memories WHERE id=? AND couple_id=? AND deleted_at IS NULL').get(req.params.id,req.auth.couple_id); if(!m)return res.status(404).json({error:'Memory not found.'});
