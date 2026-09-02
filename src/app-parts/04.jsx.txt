@@ -1,0 +1,36 @@
+            <div className="gallery-toolbar"><div className="section-head"><span className="section-index">02</span><h2>Love notes</h2><p>Words worth saving — including letters for later.</p></div><button className="btn primary" onClick={() => openEdit('note', null)}>＋ Write a note</button></div>
+            <div className="notes">
+              {notes.length ? notes.map((note) => (
+                <article className="note" key={note.id}>
+                  <div className="note-head"><span className="note-author">{note.authorName}{note.isPinned && ' · pinned'}{note.isLocked && ' · locked'}</span><time className="note-time">{formatDate(note.createdAt, true)}</time></div>
+                  {note.locked ? <div className="sealed-note"><span>🔒</span><strong>Private note</strong><small>Unlock it from Settings.</small></div> : note.sealed ? <div className="sealed-note"><span>✉</span><strong>A letter for later</strong><small>Opens {formatDate(note.openAt, true)}</small></div> : <p className="note-body">{note.body}</p>}
+                  <div className="note-actions"><button className={note.heartedByMe ? 'is-on' : ''} onClick={async () => { await apiRequest(`/api/notes/${note.id}/heart`, { method: 'POST' }); await loadNotes(); }}>♥ {note.heartCount}</button><button className={note.isFavorite ? 'is-on' : ''} onClick={async () => { await apiRequest(`/api/notes/${note.id}`, { method: 'PATCH', body: { isFavorite: !note.isFavorite } }); await Promise.all([loadNotes(), loadBase()]); }}>★ Favorite</button>{note.authorId === session.user.id && <><button onClick={() => openEdit('note', note)}>Edit</button><button onClick={() => deleteNote(note)}>Delete</button></>}</div>
+                </article>
+              )) : <p className="empty-state">No love notes yet.</p>}
+            </div>
+          </section>
+        )}
+
+        {view === 'favorites' && (
+          <section className="section app-section favorites-section">
+            <div className="gallery-toolbar"><div className="section-head"><span className="section-index">04</span><h2>Our favorites</h2><p>Your personal collection of the memories, notes, and milestones you never want to lose.</p></div></div>
+            <div className="favorites-block"><h3>Memories</h3><div className="gallery compact-gallery">{favorites.memories?.length ? favorites.memories.map((memory, index) => <article className="gcard memory-card" key={memory.id} style={{ '--r': `${[-1.6, 1.2, -.8][index % 3]}deg` }}><button className="memory-image-button" type="button" onClick={() => setViewerMemory(memory)}>{memory.locked ? <div className="frame memory-placeholder locked-tile">🔒</div> : memory.files?.[0]?.mediaType === 'video' ? <video className="frame" src={memory.files[0].url} muted preload="metadata" playsInline /> : memory.files?.[0] ? <img className="frame" src={memory.files[0].url} alt={memory.caption || 'Memory'} loading="lazy" /> : <div className="frame memory-placeholder">♡</div>}</button><span className="cap">{memory.caption || 'Memory'}</span><div className="memory-details">{formatDate(memory.memoryDate)}</div></article>) : <p className="empty-state">No favorite memories yet.</p>}</div></div>
+            <div className="favorites-block"><h3>Love notes</h3><div className="notes">{favorites.notes?.length ? favorites.notes.map((note) => <article className="note" key={note.id}><div className="note-head"><span className="note-author">{note.authorName}</span><time className="note-time">{formatDate(note.createdAt, true)}</time></div>{note.locked ? <div className="sealed-note"><span>🔒</span><strong>Private note</strong></div> : note.sealed ? <div className="sealed-note"><span>✉</span><strong>Letter for later</strong><small>Opens {formatDate(note.openAt, true)}</small></div> : <p className="note-body">{note.body}</p>}</article>) : <p className="empty-state">No favorite notes yet.</p>}</div></div>
+            <div className="favorites-block"><h3>Timeline moments</h3><ol className="thread full-thread">{favorites.timeline?.length ? favorites.timeline.map((item) => <li className="t-item timeline-card" key={item.id}><span className="thread-dot" /><div className="timeline-content"><div className="t-date">{formatDate(item.eventDate)}</div><div className="t-title">{item.title}</div>{item.description && <p className="t-desc">{item.description}</p>}<span className="type-chip">{item.eventType}</span></div></li>) : <li className="empty-state">No favorite milestones yet.</li>}</ol></div>
+          </section>
+        )}
+
+        {view === 'timeline' && (
+          <section className="section app-section timeline-section">
+            <div className="gallery-toolbar"><div className="section-head"><span className="section-index">03</span><h2>The timeline</h2><p>The firsts, the trips, the quiet days, and everything between.</p></div><button className="btn primary" onClick={() => openEdit('timeline', null)}>＋ Add a moment</button></div>
+            <div className="filter-row compact"><select value={timelineType} onChange={(e) => setTimelineType(e.target.value)}><option value="">Every kind</option><option value="first">First</option><option value="date">Date</option><option value="trip">Trip</option><option value="anniversary">Anniversary</option><option value="achievement">Achievement</option><option value="memory">Memory</option></select><label className="check-chip"><input type="checkbox" checked={timelineFavorite} onChange={(e) => setTimelineFavorite(e.target.checked)} /> Favorites</label></div>
+            <ol className="thread full-thread">
+              {timeline.length ? timeline.map((item) => (
+                <li className="t-item timeline-card" key={item.id}><span className="thread-dot" /><div className="timeline-content"><div className="t-date">{formatDate(item.eventDate) || 'Undated'}</div><div className="timeline-title-row"><div className="t-title">{item.title}</div><div className="card-actions inline"><button className={item.isFavorite ? 'is-on' : ''} onClick={async () => { await apiRequest(`/api/timeline/${item.id}`, { method: 'PATCH', body: { isFavorite: !item.isFavorite } }); await Promise.all([loadTimeline(), loadBase()]); }}>♥</button><button onClick={() => openEdit('timeline', item)}>Edit</button><button onClick={() => deleteTimeline(item)}>Delete</button></div></div>{item.description && <p className="t-desc">{item.description}</p>}<span className="type-chip">{item.eventType}</span>{item.isLocked && <span className="type-chip">locked</span>}{item.files?.length > 0 && <div className="timeline-photos">{item.files.map((file, index) => <button type="button" key={file.id} onClick={() => setLightbox({ item, index })}><img src={file.url} alt={item.title} /></button>)}</div>}</div></li>
+              )) : <li className="empty-state">Your timeline is waiting for its first moment.</li>}
+            </ol>
+          </section>
+        )}
+      </main>
+
+      <nav className="mobile-nav">

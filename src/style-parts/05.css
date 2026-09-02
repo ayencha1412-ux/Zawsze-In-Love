@@ -1,0 +1,3 @@
+.favorites-section{display:grid;gap:34px}.favorites-block{display:grid;gap:14px}.favorites-block>h3{font-size:1.35rem;color:var(--rose-deep)}.compact-gallery{columns:3 230px}.favorites-block .notes{max-width:none}
+@media(max-width:720px){.mobile-nav{grid-template-columns:repeat(5,1fr)}.compact-gallery{columns:2 145px}}
+@media(max-width:430px){.compact-gallery{columns:1}}

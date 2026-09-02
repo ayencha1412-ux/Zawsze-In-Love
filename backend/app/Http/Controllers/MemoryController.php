@@ -2,178 +2,253 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Album;
 use App\Models\Memory;
+use App\Support\Zawsze;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\URL;
-use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class MemoryController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
-        $space = $this->spaceFor($request);
-        $filter = $request->string('type')->toString();
-        $sort = $request->string('sort', 'newest')->toString();
+        $space = $request->attributes->get('zawsze_space');
+        $user = $request->user();
+        $validated = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
+            'albumId' => ['nullable', 'integer'],
+            'favorite' => ['nullable', 'boolean'],
+            'type' => ['nullable', Rule::in(['all', 'image', 'video', 'photos', 'videos'])],
+            'sort' => ['nullable', Rule::in(['newest', 'oldest'])],
+        ]);
 
         $query = Memory::query()
-            ->with(['uploader:id,name', 'comments.user:id,name'])
+            ->with(['uploader:id,name', 'album:id,name'])
+            ->withCount('comments')
             ->where('space_id', $space->id);
 
-        if (in_array($filter, ['image', 'video'], true)) {
-            $query->where('media_type', $filter);
+        if (! empty($validated['q'])) {
+            $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($validated['q'])).'%';
+            $query->where(fn ($q) => $q->where('caption', 'like', $term)->orWhere('location', 'like', $term));
         }
 
-        $direction = $sort === 'oldest' ? 'asc' : 'desc';
-        $memories = $query
-            ->orderByRaw('CASE WHEN taken_at IS NULL THEN 1 ELSE 0 END')
-            ->orderBy('taken_at', $direction)
-            ->orderBy('id', $direction)
-            ->get()
-            ->map(fn (Memory $memory) => $this->payload($memory));
+        if (! empty($validated['albumId'])) {
+            $query->where('album_id', $validated['albumId']);
+        }
 
-        return response()->json(['memories' => $memories]);
+        if ($request->boolean('favorite')) {
+            $query->whereHas('favorites', fn ($q) => $q->where('users.id', $user->id));
+        }
+
+        $type = $validated['type'] ?? 'all';
+        if (in_array($type, ['image', 'photos'], true)) $query->where('media_type', 'image');
+        if (in_array($type, ['video', 'videos'], true)) $query->where('media_type', 'video');
+
+        $direction = ($validated['sort'] ?? 'newest') === 'oldest' ? 'asc' : 'desc';
+        $items = $query->orderBy('taken_at', $direction)->orderBy('id', $direction)->get();
+
+        return response()->json($items->map(fn (Memory $memory) => $this->payload($request, $memory))->values());
     }
 
-    public function bulkStore(Request $request)
+    public function show(Request $request, Memory $memory): JsonResponse
     {
-        $space = $this->spaceFor($request);
+        $this->authorizeMemory($request, $memory);
+        $memory->load(['uploader:id,name', 'album:id,name', 'comments.user:id,name']);
+        $memory->loadCount('comments');
+        return response()->json($this->payload($request, $memory, true));
+    }
 
-        $validated = $request->validate([
-            'files' => ['required', 'array', 'min:1', 'max:100'],
-            'files.*' => ['required', 'file', 'max:512000'],
-            'file_dates' => ['nullable', 'array'],
-            'file_dates.*' => ['nullable', 'date'],
-            'caption' => ['nullable', 'string', 'max:500'],
-            'fallback_date' => ['nullable', 'date'],
+    public function store(Request $request): JsonResponse
+    {
+        $space = $request->attributes->get('zawsze_space');
+        $maxFiles = (int) config('zawsze.upload_max_files', 50);
+        $maxKb = (int) config('zawsze.upload_max_kb', 51200);
+        $allowedMimes = config('zawsze.allowed_mimes', []);
+
+        $request->validate([
+            'photos' => ['required', 'array', 'min:1', "max:{$maxFiles}"],
+            'photos.*' => ['required', 'file', "max:{$maxKb}"],
+            'fileDates' => ['nullable', 'array'],
+            'fileDates.*' => ['nullable', 'date'],
+            'caption' => ['nullable', 'string', 'max:180'],
+            'memoryDate' => ['nullable', 'date'],
+            'location' => ['nullable', 'string', 'max:160'],
+            'albumId' => ['nullable', 'integer'],
+            'isFavorite' => ['nullable'],
+            'isLocked' => ['nullable'],
         ]);
 
-        $files = $request->file('files', []);
-        $fileDates = $request->input('file_dates', []);
-        $storedPaths = [];
-
-        try {
-            $created = DB::transaction(function () use ($request, $space, $validated, $files, $fileDates, &$storedPaths) {
-                $items = collect();
-
-                foreach ($files as $index => $file) {
-                    $mime = (string) $file->getMimeType();
-                    $mediaType = str_starts_with($mime, 'video/') ? 'video' : (str_starts_with($mime, 'image/') ? 'image' : null);
-
-                    if (! $mediaType) {
-                        throw ValidationException::withMessages([
-                            "files.$index" => ['Only image and video files are supported.'],
-                        ]);
-                    }
-
-                    $extension = $file->guessExtension() ?: $file->getClientOriginalExtension() ?: 'bin';
-                    $folder = 'memories/'.now()->format('Y/m');
-                    $filename = Str::uuid().'.'.strtolower($extension);
-                    $path = $folder.'/'.$filename;
-                    Storage::disk('private')->putFileAs($folder, $file, $filename);
-                    $storedPaths[] = $path;
-
-                    $dateValue = $fileDates[$index] ?? ($validated['fallback_date'] ?? null);
-                    $takenAt = $dateValue ? Carbon::parse($dateValue) : now();
-                    $sourceKey = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
-                    $preset = config('memory_captions.'.$sourceKey, []);
-                    $caption = $validated['caption'] ?? ($preset['title'] ?? null);
-                    $description = $preset['description'] ?? null;
-
-                    $memory = Memory::create([
-                        'space_id' => $space->id,
-                        'uploaded_by_user_id' => $request->user()->id,
-                        'media_type' => $mediaType,
-                        'disk' => 'private',
-                        'storage_path' => $path,
-                        'original_name' => $file->getClientOriginalName(),
-                        'mime_type' => $mime,
-                        'size_bytes' => $file->getSize(),
-                        'caption' => $caption,
-                        'description' => $description,
-                        'taken_at' => $takenAt,
-                    ]);
-
-                    $items->push($memory->load(['uploader:id,name', 'comments.user:id,name']));
-                }
-
-                return $items;
-            });
-        } catch (\Throwable $e) {
-            foreach ($storedPaths as $path) {
-                Storage::disk('private')->delete($path);
+        $files = $request->file('photos', []);
+        foreach ($files as $file) {
+            if (! in_array($file->getMimeType(), $allowedMimes, true)) {
+                throw ValidationException::withMessages(['photos' => ["Unsupported media type: {$file->getMimeType()}"]]);
             }
-            throw $e;
         }
 
-        return response()->json([
-            'memories' => $created->map(fn (Memory $memory) => $this->payload($memory)),
-        ], 201);
+        $albumId = $request->filled('albumId') ? (int) $request->input('albumId') : null;
+        if ($albumId) {
+            abort_unless(Album::where('space_id', $space->id)->whereKey($albumId)->exists(), 422, 'That album does not belong to this Zawsze space.');
+        }
+
+        $fileDates = $request->input('fileDates', []);
+        $favorite = filter_var($request->input('isFavorite', false), FILTER_VALIDATE_BOOLEAN);
+        $locked = filter_var($request->input('isLocked', false), FILTER_VALIDATE_BOOLEAN);
+        $fallbackDate = $request->filled('memoryDate') ? Carbon::parse($request->input('memoryDate')) : now();
+
+        $created = DB::transaction(function () use ($request, $space, $files, $fileDates, $albumId, $favorite, $locked, $fallbackDate) {
+            return collect($files)->map(function ($file, $index) use ($request, $space, $fileDates, $albumId, $favorite, $locked, $fallbackDate) {
+                $mime = $file->getMimeType();
+                $mediaType = str_starts_with($mime, 'video/') ? 'video' : 'image';
+                $takenAt = ! empty($fileDates[$index]) ? Carbon::parse($fileDates[$index]) : $fallbackDate->copy();
+                $path = $file->store("spaces/{$space->id}/memories", 'private');
+
+                $memory = Memory::create([
+                    'space_id' => $space->id,
+                    'album_id' => $albumId,
+                    'uploaded_by_user_id' => $request->user()->id,
+                    'media_type' => $mediaType,
+                    'storage_disk' => 'private',
+                    'storage_path' => $path,
+                    'thumbnail_path' => null,
+                    'original_name' => $file->getClientOriginalName(),
+                    'mime_type' => $mime,
+                    'size_bytes' => $file->getSize(),
+                    'caption' => $request->input('caption') ?: pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME),
+                    'location' => $request->input('location') ?: null,
+                    'is_locked' => $locked,
+                    'taken_at' => $takenAt,
+                ]);
+
+                if ($favorite) $memory->favorites()->attach($request->user()->id);
+                return $memory->load(['uploader:id,name', 'album:id,name'])->loadCount('comments');
+            });
+        });
+
+        $count = $created->count();
+        Zawsze::notifyPartner($space, $request->user(), 'memory.created', $request->user()->name.' added '.$count.' '.($count === 1 ? 'memory' : 'memories').'.');
+
+        return response()->json(['created' => $created->map(fn ($memory) => $this->payload($request, $memory))->values()], 201);
     }
 
-    public function update(Request $request, Memory $memory)
+    public function update(Request $request, Memory $memory): JsonResponse
     {
-        $this->ensureMemoryAccess($request, $memory);
-
+        $this->authorizeMemory($request, $memory);
+        $space = $request->attributes->get('zawsze_space');
         $validated = $request->validate([
-            'caption' => ['sometimes', 'nullable', 'string', 'max:500'],
-            'description' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'caption' => ['sometimes', 'nullable', 'string', 'max:180'],
+            'memoryDate' => ['sometimes', 'nullable', 'date'],
             'taken_at' => ['sometimes', 'nullable', 'date'],
+            'location' => ['sometimes', 'nullable', 'string', 'max:160'],
+            'albumId' => ['sometimes', 'nullable', 'integer'],
+            'isFavorite' => ['sometimes', 'boolean'],
+            'isLocked' => ['sometimes', 'boolean'],
         ]);
 
-        $memory->update($validated);
-        $memory->load(['uploader:id,name', 'comments.user:id,name']);
+        if (array_key_exists('albumId', $validated) && $validated['albumId']) {
+            abort_unless(Album::where('space_id', $space->id)->whereKey($validated['albumId'])->exists(), 422);
+        }
 
-        return response()->json(['memory' => $this->payload($memory)]);
+        if (array_key_exists('caption', $validated)) $memory->caption = $validated['caption'];
+        if (array_key_exists('location', $validated)) $memory->location = $validated['location'];
+        if (array_key_exists('albumId', $validated)) $memory->album_id = $validated['albumId'] ?: null;
+        if (array_key_exists('isLocked', $validated)) $memory->is_locked = $validated['isLocked'];
+        if (array_key_exists('memoryDate', $validated)) $memory->taken_at = $validated['memoryDate'] ? Carbon::parse($validated['memoryDate']) : now();
+        if (array_key_exists('taken_at', $validated)) $memory->taken_at = $validated['taken_at'] ? Carbon::parse($validated['taken_at']) : now();
+        $memory->save();
+
+        if (array_key_exists('isFavorite', $validated)) {
+            if ($validated['isFavorite']) $memory->favorites()->syncWithoutDetaching([$request->user()->id]);
+            else $memory->favorites()->detach($request->user()->id);
+        }
+
+        return response()->json($this->payload($request, $memory->fresh(['uploader:id,name', 'album:id,name'])->loadCount('comments')));
     }
 
-    public function destroy(Request $request, Memory $memory)
+    public function destroy(Request $request, Memory $memory): JsonResponse
     {
-        $this->ensureMemoryAccess($request, $memory);
-        Storage::disk($memory->disk)->delete($memory->storage_path);
+        $this->authorizeMemory($request, $memory);
+        Storage::disk($memory->storage_disk)->delete($memory->storage_path);
+        if ($memory->thumbnail_path) Storage::disk($memory->storage_disk)->delete($memory->thumbnail_path);
         $memory->delete();
-
-        return response()->json(['message' => 'Memory deleted.']);
+        return response()->json(['ok' => true]);
     }
 
-    private function spaceFor(Request $request)
+    public function media(Memory $memory)
     {
-        $space = $request->user()->spaces()->first();
-        abort_unless($space, 403, 'This account is not attached to a Zawsze space.');
-        return $space;
+        abort_unless(Storage::disk($memory->storage_disk)->exists($memory->storage_path), 404);
+        return response()->file(Storage::disk($memory->storage_disk)->path($memory->storage_path), [
+            'Content-Type' => $memory->mime_type,
+            'Cache-Control' => 'private, max-age=1200',
+            'Content-Disposition' => 'inline; filename="'.addslashes($memory->original_name).'"',
+        ]);
     }
 
-    private function ensureMemoryAccess(Request $request, Memory $memory): void
+    public function download(Memory $memory)
     {
-        $space = $this->spaceFor($request);
-        abort_unless((int) $memory->space_id === (int) $space->id, 403);
+        abort_unless(Storage::disk($memory->storage_disk)->exists($memory->storage_path), 404);
+        return Storage::disk($memory->storage_disk)->download($memory->storage_path, $memory->original_name);
     }
 
-    private function payload(Memory $memory): array
+    public function archivePayload(Request $request, Memory $memory): array
     {
-        return [
+        return $this->payload($request, $memory, false);
+    }
+
+    private function authorizeMemory(Request $request, Memory $memory): void
+    {
+        $space = $request->attributes->get('zawsze_space');
+        abort_unless((int) $memory->space_id === (int) $space->id, 404);
+    }
+
+    private function payload(Request $request, Memory $memory, bool $withComments = false): array
+    {
+        $space = $request->attributes->get('zawsze_space');
+        $locked = $memory->is_locked && ! Zawsze::unlocked($request->user(), $space);
+        $favorite = $memory->favorites()->where('users.id', $request->user()->id)->exists();
+
+        $file = $locked ? null : [
             'id' => $memory->id,
-            'type' => $memory->media_type,
-            'title' => $memory->caption ?: pathinfo($memory->original_name, PATHINFO_FILENAME),
-            'caption' => $memory->caption,
-            'description' => $memory->description,
-            'date' => optional($memory->taken_at)->toDateString(),
-            'taken_at' => optional($memory->taken_at)->toIso8601String(),
-            'original_name' => $memory->original_name,
-            'mime_type' => $memory->mime_type,
-            'size_bytes' => $memory->size_bytes,
-            'uploaded_by' => $memory->uploader ? ['id' => $memory->uploader->id, 'name' => $memory->uploader->name] : null,
-            'src' => URL::temporarySignedRoute('memories.media', now()->addMinutes(60), ['memory' => $memory->id]),
-            'comments' => $memory->comments->map(fn ($comment) => [
-                'id' => $comment->id,
-                'author' => $comment->user?->name,
-                'body' => $comment->body,
-                'createdAt' => $comment->created_at?->toIso8601String(),
-                'user_id' => $comment->user_id,
-            ])->values(),
+            'url' => Zawsze::signed('api.memory.media', ['memory' => $memory->id]),
+            'downloadUrl' => Zawsze::signed('api.memory.download', ['memory' => $memory->id]),
+            'mediaType' => $memory->media_type,
+            'mimeType' => $memory->mime_type,
+            'originalName' => $memory->original_name,
         ];
+
+        $payload = [
+            'id' => $memory->id,
+            'caption' => $locked ? 'Locked memory' : $memory->caption,
+            'location' => $locked ? null : $memory->location,
+            'memoryDate' => optional($memory->taken_at)->format('Y-m-d'),
+            'memory_date' => optional($memory->taken_at)->format('Y-m-d'),
+            'albumId' => $memory->album_id,
+            'albumName' => $memory->album?->name,
+            'isFavorite' => $favorite,
+            'isLocked' => (bool) $memory->is_locked,
+            'locked' => $locked,
+            'mediaType' => $memory->media_type,
+            'files' => $file ? [$file] : [],
+            'commentsCount' => (int) ($memory->comments_count ?? $memory->comments()->count()),
+            'uploadedBy' => $memory->uploader ? ['id' => $memory->uploader->id, 'name' => $memory->uploader->name] : null,
+            'createdAt' => optional($memory->created_at)->toISOString(),
+        ];
+
+        if ($withComments) {
+            $payload['comments'] = $locked ? [] : $memory->comments->map(fn ($comment) => [
+                'id' => $comment->id,
+                'body' => $comment->body,
+                'createdAt' => optional($comment->created_at)->toISOString(),
+                'authorId' => $comment->user_id,
+                'authorName' => $comment->user->name,
+                'mine' => (int) $comment->user_id === (int) $request->user()->id,
+            ])->values();
+        }
+
+        return $payload;
     }
 }

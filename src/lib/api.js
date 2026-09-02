@@ -1,105 +1,11 @@
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const currentHost = globalThis.location?.hostname || '';
 const configuredUrl = import.meta.env.VITE_API_URL?.trim();
-
 export const API_URL = configuredUrl || (LOCAL_HOSTS.has(currentHost) ? 'http://localhost:8000/api' : '/api');
-
 const TOKEN_KEY = 'zawsze-auth-token';
-
-export function getStoredToken() {
-  return localStorage.getItem(TOKEN_KEY) || '';
-}
-
-export function setStoredToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
-}
-
-async function parseResponse(response) {
-  const contentType = response.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) return response.json();
-  return response.text();
-}
-
-export async function apiRequest(path, options = {}) {
-  const token = getStoredToken();
-  const isFormData = options.body instanceof FormData;
-  let response;
-
-  try {
-    response = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers: {
-        Accept: 'application/json',
-        ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.headers || {}),
-      },
-    });
-  } catch {
-    throw new Error(`Cannot reach the Zawsze backend at ${API_URL}. If you are developing locally, make sure Laravel is running on port 8000.`);
-  }
-
-  const data = await parseResponse(response);
-
-  if (!response.ok) {
-    const message = typeof data === 'object' ? data?.message : data;
-    if (response.status === 401) setStoredToken('');
-    throw new Error(message || `Request failed with status ${response.status}`);
-  }
-
-  return data;
-}
-
-export const authApi = {
-  login: (credentials) => apiRequest('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify(credentials),
-  }),
-  me: () => apiRequest('/auth/me'),
-  logout: () => apiRequest('/auth/logout', { method: 'POST' }),
-};
-
-export const memoryApi = {
-  list: ({ type = 'all', sort = 'newest' } = {}) => {
-    const params = new URLSearchParams({ type, sort });
-    return apiRequest(`/memories?${params.toString()}`);
-  },
-
-  show: (memoryId) => apiRequest(`/memories/${memoryId}`),
-
-  uploadMany: (files, { caption = '', fallbackDate = '', useFileDates = true } = {}) => {
-    const form = new FormData();
-    files.forEach((file) => {
-      form.append('files[]', file);
-      const date = file.lastModified
-        ? new Date(file.lastModified - new Date(file.lastModified).getTimezoneOffset() * 60000).toISOString().slice(0, 10)
-        : '';
-      form.append('file_dates[]', useFileDates ? date : '');
-    });
-    form.append('caption', caption);
-    form.append('fallback_date', fallbackDate);
-    form.append('use_file_dates', useFileDates ? '1' : '0');
-    return apiRequest('/memories/bulk', { method: 'POST', body: form });
-  },
-
-  update: (memoryId, values) => apiRequest(`/memories/${memoryId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(values),
-  }),
-
-  remove: (memoryId) => apiRequest(`/memories/${memoryId}`, { method: 'DELETE' }),
-};
-
-export const commentApi = {
-  list: (memoryId) => apiRequest(`/memories/${memoryId}/comments`),
-  create: (memoryId, body) => apiRequest(`/memories/${memoryId}/comments`, {
-    method: 'POST',
-    body: JSON.stringify({ body }),
-  }),
-  remove: (memoryId, commentId) => apiRequest(`/memories/${memoryId}/comments/${commentId}`, {
-    method: 'DELETE',
-  }),
-};
-
-export const healthApi = () => apiRequest('/health');
+export function getStoredToken(){return localStorage.getItem(TOKEN_KEY)||'';}
+export function setStoredToken(token){if(token)localStorage.setItem(TOKEN_KEY,token);else localStorage.removeItem(TOKEN_KEY);}
+async function parseResponse(response){const contentType=response.headers.get('content-type')||'';if(contentType.includes('application/json'))return response.json();return response.text();}
+export async function apiRequest(path,options={}){const token=getStoredToken();const isFormData=options.body instanceof FormData;let response;try{response=await fetch(`${API_URL}${path.replace(/^\/api/,'')}`,{...options,headers:{Accept:'application/json',...(!isFormData&&options.body?{'Content-Type':'application/json'}:{}),...(token?{Authorization:`Bearer ${token}`} : {}),...(options.headers||{})},body:options.body&&!isFormData&&typeof options.body!=='string'?JSON.stringify(options.body):options.body});}catch{throw new Error(`Cannot reach the Zawsze backend at ${API_URL}. Make sure Laravel is running on port 8000.`);}const data=await parseResponse(response);if(!response.ok){if(response.status===401)setStoredToken('');const message=typeof data==='object'?(data?.message||data?.error||Object.values(data?.errors||{})?.flat?.()?.[0]):data;const error=new Error(message||`Request failed with status ${response.status}`);error.status=response.status;error.data=data;throw error;}return data;}
+export function apiUpload(path,formData,onProgress=()=>{}){const token=getStoredToken();return new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('POST',`${API_URL}${path.replace(/^\/api/,'')}`);xhr.setRequestHeader('Accept','application/json');if(token)xhr.setRequestHeader('Authorization',`Bearer ${token}`);xhr.upload.onprogress=(event)=>{if(event.lengthComputable)onProgress(Math.round((event.loaded/event.total)*100));};xhr.onerror=()=>reject(new Error('Upload failed because the backend could not be reached.'));xhr.onload=()=>{let payload=xhr.responseText;try{payload=JSON.parse(xhr.responseText);}catch{}if(xhr.status>=200&&xhr.status<300)resolve(payload);else{if(xhr.status===401)setStoredToken('');const message=typeof payload==='object'?(payload?.message||payload?.error||Object.values(payload?.errors||{})?.flat?.()?.[0]):payload;const error=new Error(message||`Upload failed with status ${xhr.status}`);error.status=xhr.status;reject(error);}};xhr.send(formData);});}
+export async function apiDownload(path,filename='zawsze-download'){const token=getStoredToken();const response=await fetch(`${API_URL}${path.replace(/^\/api/,'')}`,{headers:token?{Authorization:`Bearer ${token}`}:{}});if(!response.ok){const text=await response.text();throw new Error(text||`Download failed with status ${response.status}`);}const blob=await response.blob();const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download=filename;document.body.appendChild(anchor);anchor.click();anchor.remove();URL.revokeObjectURL(url);}

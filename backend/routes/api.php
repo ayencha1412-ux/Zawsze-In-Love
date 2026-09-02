@@ -1,23 +1,5 @@
 <?php
-
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\CommentController;
-use App\Http\Controllers\MediaController;
-use App\Http\Controllers\MemoryController;
-use Illuminate\Support\Facades\Route;
-
-Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
-Route::get('/media/{memory}', [MediaController::class, 'show'])->middleware('signed')->name('memories.media');
-
-Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/auth/me', [AuthController::class, 'me']);
-    Route::post('/auth/logout', [AuthController::class, 'logout']);
-
-    Route::get('/memories', [MemoryController::class, 'index']);
-    Route::post('/memories/bulk', [MemoryController::class, 'bulkStore']);
-    Route::patch('/memories/{memory}', [MemoryController::class, 'update']);
-    Route::delete('/memories/{memory}', [MemoryController::class, 'destroy']);
-
-    Route::post('/memories/{memory}/comments', [CommentController::class, 'store']);
-    Route::delete('/memories/{memory}/comments/{comment}', [CommentController::class, 'destroy']);
-});
+use App\Http\Controllers\AccountController; use App\Http\Controllers\AlbumController; use App\Http\Controllers\ArchiveController; use App\Http\Controllers\AuthController; use App\Http\Controllers\AvatarController; use App\Http\Controllers\CommentController; use App\Http\Controllers\CoupleController; use App\Http\Controllers\MemoryController; use App\Http\Controllers\NoteController; use App\Http\Controllers\NotificationController; use App\Http\Controllers\TimelineController; use Illuminate\Support\Facades\Route;
+Route::get('/health',fn()=>['ok'=>true,'app'=>'Zawsze in Love API','time'=>now()->toISOString()]); Route::post('/auth/login',[AuthController::class,'login'])->middleware('throttle:10,1');
+Route::get('/media/memories/{memory}',[MemoryController::class,'media'])->middleware('signed')->name('api.memory.media'); Route::get('/media/memories/{memory}/download',[MemoryController::class,'download'])->middleware('signed')->name('api.memory.download'); Route::get('/media/timeline/{file}',[TimelineController::class,'media'])->middleware('signed')->name('api.timeline.media'); Route::get('/media/avatars/{user}',[AvatarController::class,'show'])->middleware('signed')->name('api.avatar');
+Route::middleware(['auth:sanctum','shared-space.member'])->group(function(){ Route::get('/me',[AuthController::class,'me']);Route::get('/auth/me',[AuthController::class,'me']);Route::post('/auth/logout',[AuthController::class,'logout']); Route::patch('/account',[AccountController::class,'update']);Route::post('/account/avatar',[AccountController::class,'avatar']); Route::patch('/couple',[CoupleController::class,'update']);Route::post('/couple/pin',[CoupleController::class,'pin']);Route::post('/couple/unlock',[CoupleController::class,'unlock']);Route::post('/couple/lock',[CoupleController::class,'lock']); Route::get('/dashboard',[ArchiveController::class,'dashboard']);Route::get('/on-this-day',[ArchiveController::class,'onThisDay']);Route::get('/search',[ArchiveController::class,'search']);Route::get('/favorites',[ArchiveController::class,'favorites']);Route::get('/export',[ArchiveController::class,'export']); Route::get('/albums',[AlbumController::class,'index']);Route::post('/albums',[AlbumController::class,'store']);Route::patch('/albums/{album}',[AlbumController::class,'update']);Route::delete('/albums/{album}',[AlbumController::class,'destroy']); Route::get('/memories',[MemoryController::class,'index']);Route::post('/memories',[MemoryController::class,'store']);Route::get('/memories/{memory}',[MemoryController::class,'show']);Route::patch('/memories/{memory}',[MemoryController::class,'update']);Route::delete('/memories/{memory}',[MemoryController::class,'destroy']); Route::get('/memories/{memory}/comments',[CommentController::class,'index']);Route::post('/memories/{memory}/comments',[CommentController::class,'store']);Route::patch('/memories/{memory}/comments/{comment}',[CommentController::class,'update']);Route::delete('/memories/{memory}/comments/{comment}',[CommentController::class,'destroy']); Route::get('/notes',[NoteController::class,'index']);Route::post('/notes',[NoteController::class,'store']);Route::patch('/notes/{note}',[NoteController::class,'update']);Route::delete('/notes/{note}',[NoteController::class,'destroy']);Route::post('/notes/{note}/heart',[NoteController::class,'heart']); Route::get('/timeline',[TimelineController::class,'index']);Route::post('/timeline',[TimelineController::class,'store']);Route::patch('/timeline/{timeline}',[TimelineController::class,'update']);Route::delete('/timeline/{timeline}',[TimelineController::class,'destroy']); Route::get('/notifications',[NotificationController::class,'index']);Route::post('/notifications/read',[NotificationController::class,'read']); });
