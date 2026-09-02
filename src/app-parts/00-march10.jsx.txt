@@ -1,4 +1,4 @@
-import { march10Sprite } from '/src/data/march10Sprite.js';
+import march10Sprite from '/src/assets/march-10/march10-sprite.webp';
 
 const MARCH10 = [
   'flash & a little attitude', 'tiny pose, big charm', 'soft look, camera ready', 'main character break',
