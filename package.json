@@ -4,7 +4,10 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "generate:app": "node scripts/generate-app.mjs",
+    "predev": "npm run generate:app",
     "dev": "vite",
+    "prebuild": "npm run generate:app",
     "build": "vite build",
     "preview": "vite preview"
   },
