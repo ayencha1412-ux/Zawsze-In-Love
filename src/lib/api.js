@@ -70,7 +70,13 @@ export const memoryApi = {
 
   uploadMany: (files, { caption = '', fallbackDate = '', useFileDates = true } = {}) => {
     const form = new FormData();
-    files.forEach((file) => form.append('files[]', file));
+    files.forEach((file) => {
+      form.append('files[]', file);
+      const date = file.lastModified
+        ? new Date(file.lastModified - new Date(file.lastModified).getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+        : '';
+      form.append('file_dates[]', useFileDates ? date : '');
+    });
     form.append('caption', caption);
     form.append('fallback_date', fallbackDate);
     form.append('use_file_dates', useFileDates ? '1' : '0');
