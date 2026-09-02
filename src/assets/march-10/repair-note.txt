@@ -1,1 +1,0 @@
-Replacing broken March 10 image data with a valid WebP generated from the user's uploaded photos.
