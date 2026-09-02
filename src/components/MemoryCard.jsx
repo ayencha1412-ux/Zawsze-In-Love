@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { formatDate } from '../lib/format.js';
+import MemoryPreview from './MemoryPreview.jsx';
 
 function MemoryCard({ memory, index = 0, onOpen, onFavorite, onEdit, onDelete, compact = false }) {
   const file = memory.files?.[0];
@@ -10,19 +11,8 @@ function MemoryCard({ memory, index = 0, onOpen, onFavorite, onEdit, onDelete, c
       <button className="memory-image-button" type="button" onClick={() => onOpen(memory)}>
         {memory.locked ? (
           <div className="frame memory-placeholder locked-tile">🔒</div>
-        ) : file?.mediaType === 'video' ? (
-          <video className="frame" src={file.url} muted preload="metadata" playsInline />
-        ) : file ? (
-          <img
-            className="frame"
-            src={file.url}
-            alt={memory.caption || 'Memory'}
-            loading="lazy"
-            decoding="async"
-            fetchPriority="low"
-          />
         ) : (
-          <div className="frame memory-placeholder">♡</div>
+          <MemoryPreview file={file} alt={memory.caption || 'Memory'} />
         )}
       </button>
 
