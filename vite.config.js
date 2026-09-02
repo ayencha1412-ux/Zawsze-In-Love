@@ -8,10 +8,14 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 
 function zawszeAppParts() {
   const publicId = 'virtual:zawsze-app-v2';
-  const resolvedId = '\0virtual:zawsze-app-v2.jsx';
+  const resolvedId = path.join(root, 'src', '__zawsze_app_v2__.jsx');
+
   return {
     name: 'zawsze-app-parts',
-    resolveId(id) { return id === publicId ? resolvedId : null; },
+    enforce: 'pre',
+    resolveId(id) {
+      return id === publicId ? resolvedId : null;
+    },
     load(id) {
       if (id !== resolvedId) return null;
       const dir = path.join(root, 'src', 'app-parts');
@@ -24,4 +28,6 @@ function zawszeAppParts() {
   };
 }
 
-export default defineConfig({ plugins: [zawszeAppParts(), react()] });
+export default defineConfig({
+  plugins: [zawszeAppParts(), react()],
+});
