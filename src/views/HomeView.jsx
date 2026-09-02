@@ -1,6 +1,7 @@
-import { FEATURED } from '../components/AuthScreen.jsx';
 import MemoryPreview from '../components/MemoryPreview.jsx';
+import PolaroidFrame from '../components/PolaroidFrame.jsx';
 import RomanticBackdrop from '../components/RomanticBackdrop.jsx';
+import FEATURED_MEMORIES from '../data/featuredMemories.js';
 import { formatDate } from '../lib/format.js';
 
 export default function HomeView({ session, partnerNames, dashboard, onThisDayItems, onNavigate }) {
@@ -35,15 +36,28 @@ export default function HomeView({ session, partnerNames, dashboard, onThisDayIt
           </div>
         </div>
 
-        <div className="hero-stack dashboard-photo-stack">
-          <div className="photo-stack-glow" aria-hidden="true" />
-          {FEATURED.map((photo, index) => (
-            <figure className={`hero-polaroid p${index + 1}`} key={photo.caption}>
-              <img src={photo.src} alt={photo.caption} decoding="async" />
-              <span className="tag">{photo.caption}</span>
-            </figure>
-          ))}
-          <span className="photo-stack-sticker">our little archive ♡</span>
+        <div className="dashboard-memory-board">
+          <div className="memory-board-pin pin-left" aria-hidden="true" />
+          <div className="memory-board-pin pin-right" aria-hidden="true" />
+          <div className="dashboard-board-heading">
+            <span>our little wall</span>
+            <small>the moments that feel like home</small>
+          </div>
+          <div className="hero-stack dashboard-photo-stack">
+            <div className="photo-stack-glow" aria-hidden="true" />
+            {FEATURED_MEMORIES.map((photo, index) => (
+              <PolaroidFrame
+                key={photo.caption}
+                photo={photo}
+                index={index}
+                variant="dashboard"
+              />
+            ))}
+          </div>
+          <div className="dashboard-board-footer">
+            <span>♡ always us</span>
+            <small>more memories waiting in the gallery →</small>
+          </div>
         </div>
       </section>
 
