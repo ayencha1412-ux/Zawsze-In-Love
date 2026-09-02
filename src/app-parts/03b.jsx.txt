@@ -1,7 +1,3 @@
-            <section className="section march10-archive">
-              <div className="gallery-toolbar"><div className="section-head"><span className="section-index">saved collection</span><h2>March 10, 2026</h2><p>The 20-photo mirror collection already saved in Zawsze, preserved while the shared backend becomes the home for new memories.</p></div></div>
-              <div className="march10-grid">{MARCH10.map((memory) => <article className="march10-card" key={memory.spriteIndex}><March10Sprite index={memory.spriteIndex} label={memory.title} /><span>{memory.title}</span><small>{formatDate(memory.date)}</small></article>)}</div>
-            </section>
           </>
         )}
 
