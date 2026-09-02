@@ -33,7 +33,7 @@
 
   const partnerNames = useMemo(() => firstNames(session?.couple?.members), [session]);
   const allOnThisDay = useMemo(() => [
-    ...(onThisDay.memories || []).map((item) => ({ ...item, kind: 'memory', title: item.caption || 'A memory', date: item.memory_date, description: item.location })),
+    ...(onThisDay.memories || []).map((item) => ({ ...item, kind: 'memory', title: item.caption || 'A memory', date: item.memory_date, description: item.description || item.location })),
     ...(onThisDay.timeline || []).map((item) => ({ ...item, kind: 'timeline', date: item.event_date, description: item.description })),
   ], [onThisDay]);
 
@@ -52,6 +52,7 @@
           method: 'PATCH',
           body: {
             caption: form.caption.value,
+            description: form.description.value,
             memoryDate: form.memoryDate.value,
             location: form.location.value,
             albumId: form.albumId.value,
