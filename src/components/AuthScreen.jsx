@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import PolaroidFrame from './PolaroidFrame.jsx';
 import RomanticBackdrop from './RomanticBackdrop.jsx';
-import FEATURED_MEMORIES from '../data/featuredMemories.js';
+import FloatingHeartLayer from './FloatingHeartLayer.jsx';
+import PolaroidFrame from './PolaroidFrame.jsx';
+import TetrisHeartLoader from './TetrisHeartLoader.jsx';
+import { FEATURED_MEMORIES } from '../data/featuredMemories.js';
 import { apiRequest, setStoredToken } from '../lib/api.js';
 
 export default function AuthScreen({ onAuthenticated }) {
@@ -31,6 +33,7 @@ export default function AuthScreen({ onAuthenticated }) {
   return (
     <main className="auth-screen landing-shell">
       <RomanticBackdrop variant="landing" />
+      <FloatingHeartLayer variant="landing" />
 
       <section className="auth-story landing-story">
         <div className="landing-brandline">
@@ -54,22 +57,13 @@ export default function AuthScreen({ onAuthenticated }) {
         </div>
 
         <div className="landing-memory-board" aria-hidden="true">
-          <div className="memory-board-heading">
-            <span>from our camera roll</span>
-            <small>three little pieces of us</small>
-          </div>
+          <div className="memory-board-heading"><span>a few pieces of us</span><small>kept close ♡</small></div>
           <div className="auth-polaroids landing-polaroids">
             {FEATURED_MEMORIES.map((photo, index) => (
-              <PolaroidFrame
-                key={photo.caption}
-                photo={photo}
-                index={index}
-                variant="landing"
-                decorative
-              />
+              <PolaroidFrame key={photo.caption} photo={photo} index={index} variant="landing" decorative />
             ))}
           </div>
-          <span className="memory-board-note">kept here, not lost in the scroll ♡</span>
+          <span className="memory-board-note">little moments, forever ours</span>
         </div>
       </section>
 
@@ -86,6 +80,7 @@ export default function AuthScreen({ onAuthenticated }) {
           <label><span>Email</span><input name="email" type="email" required autoComplete="email" placeholder="you@example.com" /></label>
           <label><span>Password</span><input name="password" type="password" required autoComplete="current-password" placeholder="Your private password" /></label>
           <button className="btn primary wide landing-signin" disabled={busy}>{busy ? 'Signing in…' : 'Sign in to our archive'}</button>
+          {busy && <TetrisHeartLoader compact label="Opening your archive…" />}
           {error && <p className="form-error">{error}</p>}
 
           <div className="privacy-note landing-privacy-note">
