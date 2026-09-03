@@ -3,15 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use Illuminate\Support\Facades\Storage;
+use App\Services\MediaResponseService;
+use Symfony\Component\HttpFoundation\Response;
 
 class AvatarController extends Controller
 {
-    public function show(User $user)
+    public function show(User $user, MediaResponseService $media): Response
     {
-        abort_unless($user->avatar_path && Storage::disk('private')->exists($user->avatar_path), 404);
-        return Storage::disk('private')->response($user->avatar_path, null, [
-            'Cache-Control' => 'private, max-age=1200',
-        ]);
+        abort_unless($user->avatar_path, 404);
+        $storageDisk = (string) config('zawsze.media_disk', 'media');
+
+        return $media->inline(
+            $storageDisk,
+            $user->avatar_path,
+            'image/*',
+            'avatar-'.$user->id,
+            1200,
+        );
     }
 }
