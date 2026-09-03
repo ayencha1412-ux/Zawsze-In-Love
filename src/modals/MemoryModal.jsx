@@ -1,4 +1,5 @@
 import Modal from '../components/Modal.jsx';
+import TetrisHeartLoader from '../components/TetrisHeartLoader.jsx';
 
 export default function MemoryModal({ item, albums, onClose, onSubmit, progress = 0 }) {
   const busy = progress > 0;
@@ -40,10 +41,17 @@ export default function MemoryModal({ item, albums, onClose, onSubmit, progress 
           <label><input name="isLocked" type="checkbox" defaultChecked={item?.isLocked} /> PIN lock</label>
         </div>
         {busy && (
-          <div className="upload-progress" aria-live="polite">
-            <span style={{ width: `${progress}%` }} />
-            <small>{progressText}</small>
-          </div>
+          <>
+            <div className="upload-progress" aria-live="polite">
+              <span style={{ width: `${progress}%` }} />
+              <small>{progressText}</small>
+            </div>
+            {finishing && (
+              <div className="upload-heart-finish">
+                <TetrisHeartLoader compact label="Keeping this moment safe…" />
+              </div>
+            )}
+          </>
         )}
         <div className="modal-actions">
           <button className="btn soft" type="button" onClick={onClose} disabled={busy}>Cancel</button>

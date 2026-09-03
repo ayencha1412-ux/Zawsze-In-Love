@@ -1,0 +1,137 @@
+/* Lightweight CSS-only 3D block heart. No canvas, WebGL, or animation library. */
+.block-heart{
+  --heart-unit:18px;
+  --heart-depth:max(3px,calc(var(--heart-unit) * .24));
+  position:relative;
+  display:inline-block;
+  width:calc(var(--heart-unit) * 5 + var(--heart-depth));
+  height:calc(var(--heart-unit) * 5 + var(--heart-depth));
+  transform-style:preserve-3d;
+  filter:drop-shadow(0 12px 14px rgba(93,45,56,.15));
+}
+.heart-block{
+  position:absolute;
+  left:calc(var(--x) * var(--heart-unit));
+  top:calc(var(--y) * var(--heart-unit));
+  width:calc(var(--heart-unit) - 2px);
+  height:calc(var(--heart-unit) - 2px);
+  border-radius:2px;
+  background:linear-gradient(145deg,#d9788a 0%,var(--rose) 52%,#a94359 100%);
+  box-shadow:inset 1px 1px rgba(255,255,255,.32),inset -1px -1px rgba(91,35,49,.16);
+  transform-style:preserve-3d;
+}
+.heart-block:before,
+.heart-block:after{
+  content:'';
+  position:absolute;
+  pointer-events:none;
+}
+.heart-block:before{
+  left:3px;
+  right:calc(var(--heart-depth) * -1);
+  top:calc(var(--heart-depth) * -1);
+  height:var(--heart-depth);
+  background:linear-gradient(90deg,#f3c7d2,#d991a0);
+  transform:skewX(-42deg);
+  transform-origin:left bottom;
+  border-radius:2px 2px 0 0;
+}
+.heart-block:after{
+  top:calc(var(--heart-depth) * -1 + 3px);
+  bottom:0;
+  right:calc(var(--heart-depth) * -1);
+  width:var(--heart-depth);
+  background:linear-gradient(180deg,#9f3f55,#7d3144);
+  transform:skewY(-42deg);
+  transform-origin:left top;
+  border-radius:0 2px 2px 0;
+}
+.block-heart.is-built .heart-block{opacity:.92}
+.block-heart.is-building .heart-block{
+  opacity:0;
+  animation:heart-block-drop 3.05s cubic-bezier(.2,.8,.2,1) infinite;
+  animation-delay:calc(var(--i) * 58ms);
+}
+.block-heart.is-building{animation:heart-built-pulse 3.05s ease-in-out infinite}
+@keyframes heart-block-drop{
+  0%,7%{opacity:0;transform:translate3d(0,-44px,0) scale(.72) rotate(-7deg)}
+  20%,73%{opacity:1;transform:translate3d(0,0,0) scale(1) rotate(0)}
+  86%,100%{opacity:0;transform:translate3d(0,12px,0) scale(.82)}
+}
+@keyframes heart-built-pulse{
+  0%,42%,100%{transform:translateY(0) scale(1)}
+  53%{transform:translateY(-3px) scale(1.035)}
+  62%{transform:translateY(0) scale(1)}
+}
+
+.tetris-heart-loader{
+  display:grid;
+  justify-items:center;
+  gap:17px;
+  color:var(--rose-deep);
+  text-align:center;
+}
+.tetris-heart-stage{
+  position:relative;
+  display:grid;
+  place-items:center;
+  min-width:118px;
+  min-height:116px;
+  perspective:700px;
+}
+.tetris-heart-stage .block-heart{transform:rotateX(4deg) rotateY(-5deg)}
+.tetris-heart-shadow{
+  position:absolute;
+  left:50%;
+  bottom:4px;
+  width:70px;
+  height:14px;
+  border-radius:50%;
+  background:rgba(89,43,54,.13);
+  filter:blur(8px);
+  transform:translateX(-50%);
+  animation:tetris-shadow-pulse 3.05s ease-in-out infinite;
+}
+.tetris-heart-label{
+  font-family:'Fraunces',serif;
+  font-style:italic;
+  font-size:.88rem;
+  letter-spacing:.015em;
+  color:var(--rose-deep);
+}
+.tetris-heart-loader.is-compact{display:inline-flex;align-items:center;gap:10px;text-align:left}
+.tetris-heart-loader.is-compact .tetris-heart-stage{min-width:49px;min-height:48px}
+.tetris-heart-loader.is-compact .tetris-heart-shadow{width:30px;height:7px;bottom:0;filter:blur(5px)}
+.tetris-heart-loader.is-compact .tetris-heart-label{font-family:inherit;font-style:normal;font-size:.73rem;color:var(--muted);font-weight:700}
+@keyframes tetris-shadow-pulse{0%,100%{opacity:.45;transform:translateX(-50%) scaleX(.82)}50%{opacity:.8;transform:translateX(-50%) scaleX(1)}}
+
+.phase-a-loader-card{
+  display:grid;
+  place-items:center;
+  min-height:100vh;
+  padding:32px;
+  background:
+    radial-gradient(circle at 22% 20%,rgba(243,199,210,.35),transparent 32%),
+    radial-gradient(circle at 82% 78%,rgba(201,164,126,.14),transparent 34%),
+    linear-gradient(145deg,var(--paper),var(--paper-deep));
+}
+.phase-a-loader-card .tetris-heart-loader{
+  padding:28px 34px;
+  border:1px solid rgba(190,84,104,.12);
+  border-radius:28px;
+  background:rgba(255,250,244,.76);
+  box-shadow:0 28px 70px rgba(78,45,54,.12);
+  backdrop-filter:blur(12px);
+}
+
+.gallery-heart-loader{display:flex;justify-content:center;padding:18px 0 10px}
+.upload-heart-finish{display:flex;justify-content:center;margin:2px 0 4px}
+
+@media(max-width:720px){
+  .tetris-heart-stage{min-width:102px;min-height:100px}
+  .phase-a-loader-card .tetris-heart-loader{padding:22px 26px}
+}
+@media(prefers-reduced-motion:reduce){
+  .block-heart.is-building .heart-block{animation:none;opacity:1;transform:none}
+  .block-heart.is-building,.tetris-heart-shadow{animation:none}
+}

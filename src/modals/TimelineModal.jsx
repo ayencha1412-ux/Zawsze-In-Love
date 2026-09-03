@@ -1,4 +1,5 @@
 import Modal from '../components/Modal.jsx';
+import TetrisHeartLoader from '../components/TetrisHeartLoader.jsx';
 
 export default function TimelineModal({ item, onClose, onSubmit, progress = 0 }) {
   const busy = progress > 0;
@@ -25,10 +26,17 @@ export default function TimelineModal({ item, onClose, onSubmit, progress = 0 })
           <label><input name="isLocked" type="checkbox" defaultChecked={item?.isLocked} /> PIN lock</label>
         </div>
         {busy && (
-          <div className="upload-progress" aria-live="polite">
-            <span style={{ width: `${progress}%` }} />
-            <small>{finishing ? 'Upload complete — saving moment…' : `Uploading… ${progress}%`}</small>
-          </div>
+          <>
+            <div className="upload-progress" aria-live="polite">
+              <span style={{ width: `${progress}%` }} />
+              <small>{finishing ? 'Upload complete — saving moment…' : `Uploading… ${progress}%`}</small>
+            </div>
+            {finishing && (
+              <div className="upload-heart-finish">
+                <TetrisHeartLoader compact label="Adding this piece to your story…" />
+              </div>
+            )}
+          </>
         )}
         <div className="modal-actions">
           <button className="btn soft" type="button" onClick={onClose} disabled={busy}>Cancel</button>

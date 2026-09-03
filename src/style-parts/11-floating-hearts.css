@@ -1,0 +1,61 @@
+/* Decorative background hearts: only three instances per surface to keep paint work light. */
+.floating-heart-layer{
+  position:absolute;
+  inset:0;
+  overflow:hidden;
+  pointer-events:none;
+  user-select:none;
+  z-index:0;
+  contain:layout paint style;
+}
+.floating-block-heart{
+  position:absolute;
+  display:block;
+  opacity:.13;
+  filter:blur(.15px) saturate(.88);
+  will-change:transform;
+}
+.floating-block-heart .block-heart{filter:drop-shadow(0 10px 12px rgba(93,45,56,.08))}
+.float-heart-a{left:5%;top:18%;animation:float-heart-a 18s ease-in-out infinite alternate}
+.float-heart-b{right:8%;top:34%;opacity:.09;animation:float-heart-b 22s ease-in-out infinite alternate}
+.float-heart-c{left:72%;bottom:4%;opacity:.1;animation:float-heart-c 20s ease-in-out infinite alternate}
+
+.floating-heart-layer--landing{position:fixed;inset:0}
+.floating-heart-layer--landing .float-heart-a{left:8%;top:68%;opacity:.11}
+.floating-heart-layer--landing .float-heart-b{right:7%;top:12%;opacity:.08}
+.floating-heart-layer--landing .float-heart-c{left:58%;bottom:8%;opacity:.095}
+
+.floating-heart-layer--dashboard{inset:-20px -6vw -80px}
+.floating-heart-layer--dashboard .float-heart-a{left:0;top:17%}
+.floating-heart-layer--dashboard .float-heart-b{right:2%;top:50%}
+.floating-heart-layer--dashboard .float-heart-c{left:77%;bottom:0}
+
+@keyframes float-heart-a{
+  0%{transform:translate3d(0,0,0) rotate(-9deg) scale(.92)}
+  50%{transform:translate3d(18px,-24px,0) rotate(3deg) scale(1)}
+  100%{transform:translate3d(-9px,-46px,0) rotate(10deg) scale(.96)}
+}
+@keyframes float-heart-b{
+  0%{transform:translate3d(0,0,0) rotate(12deg) scale(.9)}
+  50%{transform:translate3d(-22px,19px,0) rotate(2deg) scale(1.03)}
+  100%{transform:translate3d(8px,-31px,0) rotate(-8deg) scale(.96)}
+}
+@keyframes float-heart-c{
+  0%{transform:translate3d(0,0,0) rotate(-3deg) scale(.94)}
+  50%{transform:translate3d(12px,-28px,0) rotate(8deg) scale(1)}
+  100%{transform:translate3d(-16px,-52px,0) rotate(-10deg) scale(.91)}
+}
+
+.landing-shell>.floating-heart-layer{position:fixed;z-index:0}
+.landing-shell>.auth-story,.landing-shell>.auth-card{position:relative;z-index:2}
+.home-dashboard>.floating-heart-layer{z-index:0}
+.home-dashboard>.dashboard-hero,.home-dashboard>.dashboard-grid{position:relative;z-index:1}
+
+@media(max-width:720px){
+  .floating-block-heart{opacity:.075}
+  .floating-heart-layer .float-heart-b{display:none}
+  .floating-heart-layer--landing .float-heart-c{left:72%}
+}
+@media(prefers-reduced-motion:reduce){
+  .floating-block-heart{animation:none!important}
+}

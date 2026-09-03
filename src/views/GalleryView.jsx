@@ -1,4 +1,5 @@
 import MemoryCard from '../components/MemoryCard.jsx';
+import TetrisHeartLoader from '../components/TetrisHeartLoader.jsx';
 
 export default function GalleryView({
   memories,
@@ -67,7 +68,11 @@ export default function GalleryView({
         )) : !loading && <p className="empty-state">No memories here yet. Add the first one.</p>}
       </div>
 
-      {loading && <p className="gallery-status">Loading memories…</p>}
+      {loading && (
+        <div className="gallery-heart-loader">
+          <TetrisHeartLoader compact label={memories.length ? 'Bringing in more memories…' : 'Building your gallery…'} />
+        </div>
+      )}
       {!loading && hasMore && (
         <div className="gallery-load-more">
           <button className="btn soft" type="button" onClick={onLoadMore}>Load more memories</button>
