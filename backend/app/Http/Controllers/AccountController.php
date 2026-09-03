@@ -35,6 +35,7 @@ class AccountController extends Controller
         }
 
         $user->save();
+
         return response()->json(['ok' => true]);
     }
 
@@ -45,11 +46,12 @@ class AccountController extends Controller
         ]);
 
         $user = $request->user();
+        $storageDisk = (string) config('zawsze.media_disk', 'media');
         if ($user->avatar_path) {
-            Storage::disk('private')->delete($user->avatar_path);
+            Storage::disk($storageDisk)->delete($user->avatar_path);
         }
 
-        $user->avatar_path = $request->file('avatar')->store("avatars/{$user->id}", 'private');
+        $user->avatar_path = $request->file('avatar')->store("avatars/{$user->id}", $storageDisk);
         $user->save();
 
         return response()->json([
