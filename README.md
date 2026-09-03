@@ -1,117 +1,96 @@
 # Zawsze in Love
 
-A private two-person memory website built with React + Vite and designed to grow into a Laravel-backed full-stack app.
+A private two-person memory website built with React + Vite and a Laravel backend. Zawsze is designed as a shared archive for two authorized users, with memories, notes, timeline entries, favorites, comments, private media, and couple settings.
 
-The project keeps the soft pink, red, beige, paper, and polaroid visual language while moving away from a one-page apology site into a shared archive for two people.
+## Architecture
 
-## Current frontend
+### Local development
 
-The React frontend now includes:
+```text
+React + Vite
+    ↓
+Laravel API
+    ↓
+SQLite + local private media
+```
 
-- a private two-person visual identity;
-- a shared memory gallery using the existing photos;
-- photo and video support;
-- bulk media selection for mass uploads;
-- automatic use of each selected file's date when available;
-- newest-first and oldest-first sorting;
-- All / Photos / Videos filters;
-- a date-grouped timeline;
-- a responsive memory detail view;
-- comments attached to each individual memory;
-- a You / Love identity toggle for prototype comments;
-- mobile, tablet, and desktop layouts;
-- a centralized API client in `src/lib/api.js` prepared for Laravel.
+### Production / cross-device deployment
 
-Until the backend is connected, newly selected media is intentionally session-only and prototype comments use `localStorage`. This avoids pretending that the two devices are already synchronized.
+```text
+React + Vite on Cloudflare Pages
+            ↓
+Laravel API on a PHP 8.3 server
+            ↓
+      MySQL + private Cloudflare R2
+```
+
+The production architecture is the important part for cross-device use: both users and every authorized device connect to the same database and private media bucket. Upload once, then view the same memory from another laptop, phone, or tablet without re-uploading it.
+
+GitHub stores source code only. Real passwords, `.env` files, database backups, and private photos/videos must never be committed.
+
+## Current application
+
+Zawsze includes:
+
+- private login for the two authorized users;
+- shared Home dashboard;
+- Gallery with photo and video uploads;
+- albums, favorites, dates, locations, locking, comments, edit and delete controls;
+- optimized previews and cursor pagination;
+- Love Notes;
+- Timeline with image attachments;
+- Favorites and search;
+- notifications;
+- account, avatar, couple, PIN, album, and backup settings;
+- private signed media routes;
+- local development storage plus S3-compatible production media support;
+- Cloudflare R2-ready private object storage;
+- MySQL-ready production database configuration.
 
 ## Run locally in VS Code
 
+Frontend:
+
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-Vite will print the local address, usually:
-
-```text
-http://localhost:5173/
-```
-
-If another Vite process is already running, it may use `5174` or another nearby port.
-
-## Build the frontend
+Backend:
 
 ```bash
-npm run build
+cd backend
+composer install
+php artisan migrate --seed
+php artisan serve
 ```
 
-## GitHub workflow
+On the Windows development laptop that uses the standalone PHP 8.3 installation, Artisan can be run explicitly with that PHP executable.
 
-This repository is already connected to:
+Frontend development URL is normally:
 
 ```text
-ayencha1412-ux/Zawsze-In-Love
+http://localhost:5173
 ```
 
-To receive changes made on GitHub in the local VS Code copy:
-
-```bash
-git pull
-```
-
-To send local changes back to GitHub:
-
-```bash
-git add .
-git commit -m "Describe the change"
-git push
-```
-
-## Full-stack direction
-
-Zawsze will follow the useful architectural pattern from IntelliBridge without sharing IntelliBridge code or business logic:
+Backend development URL is normally:
 
 ```text
-React + Vite frontend
-        ↓
-centralized API client
-        ↓
-Laravel REST API
-        ↓
-Sanctum authentication
-        ↓
-MySQL/PostgreSQL database
-        ↓
-private photo/video storage
-```
-
-There will be no public registration. The production app is intended for exactly two authorized accounts sharing one private space.
-
-The backend will support:
-
-- private login for the two users;
-- database-backed memories;
-- private photo/video storage;
-- bulk uploads;
-- per-file memory dates;
-- date sorting and timeline grouping;
-- per-memory comments;
-- edit/delete controls;
-- authorized media streaming;
-- deployment configuration, backups, CORS, and HTTPS.
-
-The detailed database schema, endpoint contract, privacy model, and recommended Laravel implementation order are documented in:
-
-```text
-docs/FULL_STACK_BLUEPRINT.md
+http://localhost:8000
 ```
 
 ## API environment
 
-The future Laravel API URL is configured with:
+Local frontend:
 
 ```env
 VITE_API_URL=http://localhost:8000/api
+```
+
+Production frontend:
+
+```env
+VITE_API_URL=https://api.example.com/api
 ```
 
 The frontend request layer is centralized in:
@@ -120,4 +99,68 @@ The frontend request layer is centralized in:
 src/lib/api.js
 ```
 
-That file already defines the planned authentication, bulk-memory, and comment API calls so the React components will not need backend URLs scattered throughout the interface.
+## Private media storage
+
+Local development uses the `media` disk backed by:
+
+```text
+backend/storage/app/private
+```
+
+Production can point the same logical `media` disk to Cloudflare R2 using Laravel's S3-compatible filesystem driver. Gallery originals, Gallery previews, Timeline images, and avatars use the configured media disk.
+
+After configuring production storage, verify it with:
+
+```bash
+php artisan zawsze:storage-check
+```
+
+## Deployment
+
+The complete cross-device deployment guide is:
+
+```text
+docs/DEPLOYMENT.md
+```
+
+It covers:
+
+- Cloudflare R2 private media storage;
+- central MySQL database configuration;
+- Laravel production environment values;
+- Cloudflare Pages frontend configuration;
+- storage health checks;
+- safe migration and backup guidance.
+
+Safe templates are provided in:
+
+```text
+.env.production.example
+backend/.env.production.example
+```
+
+Never put real credentials into those tracked example files.
+
+## GitHub workflow
+
+Repository:
+
+```text
+ayencha1412-ux/Zawsze-In-Love
+```
+
+Receive merged GitHub changes in the local VS Code copy:
+
+```bash
+git pull origin main
+```
+
+Send local source-code changes back to GitHub:
+
+```bash
+git add .
+git commit -m "Describe the change"
+git push
+```
+
+Private memories and secrets stay outside Git.

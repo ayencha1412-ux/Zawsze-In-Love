@@ -23,16 +23,17 @@ return [
                 'bucket' => env('MEDIA_BUCKET'),
                 'url' => env('MEDIA_URL'),
                 'endpoint' => env('MEDIA_ENDPOINT'),
-                'use_path_style_endpoint' => (bool) env('MEDIA_PATH_STYLE', false),
-                'visibility' => 'private',
-                'throw' => false,
+                'use_path_style_endpoint' => filter_var(env('MEDIA_PATH_STYLE', false), FILTER_VALIDATE_BOOLEAN),
+                // R2 does not implement S3 ACL headers, so do not set a default visibility here.
+                // Keep the bucket private and serve files only through Zawsze's signed routes.
+                'throw' => true,
                 'report' => false,
             ]
             : [
                 'driver' => 'local',
                 'root' => storage_path('app/private'),
                 'serve' => false,
-                'throw' => false,
+                'throw' => true,
                 'report' => false,
             ],
 
