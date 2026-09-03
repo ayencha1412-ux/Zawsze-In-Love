@@ -1,3 +1,4 @@
+import FloatingHeartLayer from '../components/FloatingHeartLayer.jsx';
 import MemoryPreview from '../components/MemoryPreview.jsx';
 import PolaroidFrame from '../components/PolaroidFrame.jsx';
 import RomanticBackdrop from '../components/RomanticBackdrop.jsx';
@@ -8,6 +9,7 @@ export default function HomeView({ session, partnerNames, dashboard, onThisDayIt
   return (
     <div className="home-dashboard">
       <RomanticBackdrop variant="dashboard" />
+      <FloatingHeartLayer variant="dashboard" />
 
       <section className="hero app-hero dashboard-hero">
         <div className="hero-text hero-reveal dashboard-hero-copy">
