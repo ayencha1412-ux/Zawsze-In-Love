@@ -3,7 +3,7 @@ import RomanticBackdrop from './RomanticBackdrop.jsx';
 import FloatingHeartLayer from './FloatingHeartLayer.jsx';
 import PolaroidFrame from './PolaroidFrame.jsx';
 import TetrisHeartLoader from './TetrisHeartLoader.jsx';
-import { FEATURED_MEMORIES } from '../data/featuredMemories.js';
+import FEATURED_MEMORIES from '../data/featuredMemories.js';
 import { apiRequest, setStoredToken } from '../lib/api.js';
 
 export default function AuthScreen({ onAuthenticated }) {
